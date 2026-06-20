@@ -15,12 +15,11 @@
 		"prepare": "husky"
 	},
 	"dependencies": {
+		"@earendil-works/pi-agent-core": "0.79.8",
+		"@earendil-works/pi-ai": "0.79.8",
+		"@earendil-works/pi-web-ui": "0.75.3",
 		"@mariozechner/jailjs": "^0.1.0",
 		"@mariozechner/mini-lit": "file:../mini-lit",
-		"@mariozechner/pi-agent-core": "file:../pi-mono/packages/agent",
-		"@mariozechner/pi-ai": "file:../pi-mono/packages/ai",
-		"@mariozechner/pi-web-ui": "file:../pi-mono/packages/web-ui",
-		"@sinclair/typebox": "^0.34.41",
 		"chart.js": "^4.5.1",
 		"docx-preview": "^0.3.7",
 		"fuse.js": "^7.1.0",
@@ -44,6 +43,12 @@
 		"concurrently": "^9.2.1",
 		"esbuild": "^0.25.10",
 		"husky": "^9.1.7",
+		"typescript": "^6.0.3",
 		"ws": "^8.18.0"
+	},
+	"overrides": {
+		"@earendil-works/pi-web-ui": {
+			"@earendil-works/pi-ai": "0.79.8"
+		}
 	}
 }

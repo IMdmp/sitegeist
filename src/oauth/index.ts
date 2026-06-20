@@ -6,6 +6,7 @@
  * refreshes the token if expired, and returns the access token.
  */
 
+import { resolveCloudflareWorkersAiApiKey } from "../providers/cloudflare-workers-ai.js";
 import { loginAnthropic, refreshAnthropic } from "./anthropic.js";
 import { loginGitHubCopilot, refreshGitHubCopilot } from "./github-copilot.js";
 import { loginGeminiCli, refreshGeminiCli } from "./google-gemini-cli.js";
@@ -102,6 +103,11 @@ export async function resolveApiKey(
 	storage: { set: (provider: string, value: string) => Promise<void> },
 	proxyUrl?: string,
 ): Promise<string> {
+	const cloudflareWorkersAiApiKey = resolveCloudflareWorkersAiApiKey(storedValue);
+	if (cloudflareWorkersAiApiKey) {
+		return cloudflareWorkersAiApiKey;
+	}
+
 	if (!isOAuthCredentials(storedValue)) {
 		return storedValue;
 	}

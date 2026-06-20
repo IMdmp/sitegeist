@@ -1,9 +1,7 @@
 import "@mariozechner/mini-lit/dist/MarkdownBlock.js";
-import { icon } from "@mariozechner/mini-lit";
-import { Diff } from "@mariozechner/mini-lit/dist/Diff.js";
-import i18n from "@mariozechner/mini-lit/dist/i18n.js";
-import type { AgentTool } from "@mariozechner/pi-agent-core";
-import { StringEnum, type ToolResultMessage } from "@mariozechner/pi-ai";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { ToolResultMessage } from "@earendil-works/pi-ai";
+import { type Static, Type } from "@earendil-works/pi-ai/base";
 import {
 	registerToolRenderer,
 	renderCollapsibleHeader,
@@ -11,8 +9,10 @@ import {
 	SandboxIframe,
 	type ToolRenderer,
 	type ToolRenderResult,
-} from "@mariozechner/pi-web-ui";
-import { type Static, Type } from "@sinclair/typebox";
+} from "@earendil-works/pi-web-ui";
+import { icon } from "@mariozechner/mini-lit";
+import { Diff } from "@mariozechner/mini-lit/dist/Diff.js";
+import i18n from "@mariozechner/mini-lit/dist/i18n.js";
 import { html, type TemplateResult } from "lit";
 import { createRef, ref } from "lit/directives/ref.js";
 import { Sparkles } from "lucide";
@@ -40,6 +40,10 @@ export async function initializeDefaultSkills() {
 const getSandboxUrl = () => {
 	return chrome.runtime.getURL("sandbox.html");
 };
+
+function stringEnum<const T extends readonly string[]>(values: T, options?: Parameters<typeof Type.String>[0]) {
+	return Type.Unsafe<T[number]>({ type: "string", enum: [...values], ...options });
+}
 
 /**
  * Check if library code contains navigation attempts.
@@ -105,7 +109,7 @@ async function validateJavaScriptSyntax(code: string): Promise<{ valid: boolean;
 
 // IMPORTANT: Use StringEnum for Google API compatibility (NOT Type.Union!)
 const skillParamsSchema = Type.Object({
-	action: StringEnum(["get", "list", "create", "rewrite", "update", "delete"], {
+	action: stringEnum(["get", "list", "create", "rewrite", "update", "delete"], {
 		description: "Action to perform",
 	}),
 	name: Type.Optional(Type.String({ description: "Skill name (required for get/rewrite/update/delete)" })),

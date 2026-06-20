@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+
+- Cloudflare Workers AI as a configurable AI provider with account ID and API token settings
+
+### Changed
+
+- Migrated AI runtime packages from deprecated `@mariozechner/pi-*` packages to `@earendil-works/pi-*`
+
+### Fixed
+
+- Cloudflare Workers AI model selector missing newer hosted models, including GLM-5.2
+- Model selector not refreshing the selected model after choosing a Cloudflare Workers AI model
+- Cloudflare Workers AI requests not applying the saved Account ID during streaming
+
 ## [1.0.0] - 2026-03-15
 
 ### Added

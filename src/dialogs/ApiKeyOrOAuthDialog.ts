@@ -1,7 +1,7 @@
+import { getAppStorage } from "@earendil-works/pi-web-ui";
 import { Button } from "@mariozechner/mini-lit/dist/Button.js";
 import { DialogContent, DialogHeader } from "@mariozechner/mini-lit/dist/Dialog.js";
 import { DialogBase } from "@mariozechner/mini-lit/dist/DialogBase.js";
-import { getAppStorage } from "@mariozechner/pi-web-ui";
 import { html } from "lit";
 import { Toast } from "../components/Toast.js";
 import {
@@ -11,8 +11,11 @@ import {
 	oauthLogin,
 	serializeOAuthCredentials,
 } from "../oauth/index.js";
+import { isCloudflareWorkersAiProvider } from "../providers/cloudflare-workers-ai.js";
+import "./CloudflareWorkersAiKeyInput.js";
+import "./SitegeistProviderKeyInput.js";
 // ProviderKeyInput custom element is registered via pi-web-ui main export
-import "@mariozechner/pi-web-ui";
+import "@earendil-works/pi-web-ui";
 
 /**
  * Prompt dialog shown when trying to use a provider with no key.
@@ -96,6 +99,7 @@ export class ApiKeyOrOAuthDialog extends DialogBase {
 
 	protected renderContent() {
 		const supportsOAuth = isOAuthProvider(this.provider);
+		const isCloudflareWorkersAi = isCloudflareWorkersAiProvider(this.provider);
 
 		return html`
 			${DialogContent({
@@ -150,8 +154,14 @@ export class ApiKeyOrOAuthDialog extends DialogBase {
 					}
 
 					<div class="flex flex-col gap-3">
-						<h3 class="text-sm font-semibold text-foreground">API Key</h3>
-						<provider-key-input .provider=${this.provider}></provider-key-input>
+						${
+							isCloudflareWorkersAi
+								? html`<cloudflare-workers-ai-key-input></cloudflare-workers-ai-key-input>`
+								: html`
+										<h3 class="text-sm font-semibold text-foreground">API Key</h3>
+										<sitegeist-provider-key-input .provider=${this.provider}></sitegeist-provider-key-input>
+									`
+						}
 					</div>
 				`,
 			})}

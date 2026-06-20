@@ -8,19 +8,19 @@ import {
 	type AgentMessage,
 	type AgentState,
 	type AgentTool,
-} from "@mariozechner/pi-agent-core";
-import { getModel, getModels, type Model } from "@mariozechner/pi-ai";
+	type StreamFn,
+} from "@earendil-works/pi-agent-core";
+import { getModel, getModels, type Model } from "@earendil-works/pi-ai";
 import {
 	ChatPanel,
 	createExtractDocumentTool,
 	createStreamFn,
-	ModelSelector,
 	ProxyTab,
 	SettingsDialog,
 	// PersistentStorageDialog,
 	setAppStorage,
 	setShowJsonMode,
-} from "@mariozechner/pi-web-ui";
+} from "@earendil-works/pi-web-ui";
 import { html, render } from "lit";
 import { History, Plus, Settings } from "lucide";
 import { AboutTab } from "./dialogs/AboutTab.js";
@@ -29,6 +29,7 @@ import { ApiKeysOAuthTab } from "./dialogs/ApiKeysOAuthTab.js";
 import { CostsTab } from "./dialogs/CostsTab.js";
 import { SessionCostDialog } from "./dialogs/SessionCostDialog.js";
 import { SitegeistSessionListDialog } from "./dialogs/SessionListDialog.js";
+import { installSitegeistModelSelector, SITEGEIST_MODEL_SELECTED_EVENT } from "./dialogs/SitegeistModelSelector.js";
 import { SkillsTab } from "./dialogs/SkillsTab.js";
 import { UpdateNotificationDialog } from "./dialogs/UpdateNotificationDialog.js";
 import { UserScriptsPermissionDialog } from "./dialogs/UserScriptsPermissionDialog.js";
@@ -43,6 +44,11 @@ import { registerUserMessageRenderer } from "./messages/UserMessageRenderer.js";
 import { createWelcomeMessage, registerWelcomeRenderer } from "./messages/WelcomeMessage.js";
 import { isOAuthCredentials, resolveApiKey } from "./oauth/index.js";
 import { SYSTEM_PROMPT } from "./prompts/prompts.js";
+import {
+	applyCloudflareWorkersAiCredentials,
+	isCloudflareWorkersAiProvider,
+	parseCloudflareWorkersAiCredentials,
+} from "./providers/cloudflare-workers-ai.js";
 import { SitegeistAppStorage } from "./storage/app-storage.js";
 import { DebuggerTool } from "./tools/debugger.js";
 import { ExtractImageTool, registerExtractImageRenderer } from "./tools/extract-image.js";
@@ -57,6 +63,7 @@ import "./utils/live-reload.js";
 import { tutorials } from "./tutorials.js";
 
 // Register custom message renderers
+installSitegeistModelSelector();
 registerNavigationRenderer();
 registerExtractImageRenderer();
 
@@ -110,6 +117,7 @@ const DEFAULT_MODELS: Record<string, string> = {
 	anthropic: "claude-sonnet-4-6",
 	"azure-openai-responses": "gpt-5.2",
 	cerebras: "zai-glm-4.6",
+	"cloudflare-workers-ai": "@cf/moonshotai/kimi-k2.6",
 	"github-copilot": "gpt-4o",
 	google: "gemini-2.5-flash",
 	"google-antigravity": "gemini-3.1-pro-high",
@@ -141,7 +149,7 @@ async function selectDefaultModelForAvailableProvider() {
 		if (modelId) {
 			const model = getModel(provider as any, modelId);
 			if (model) {
-				agent.setModel(model);
+				agent.state.model = model;
 				await storage.settings.set("lastUsedModel", model);
 				await updateAuthLabel();
 				renderApp();
@@ -154,7 +162,7 @@ async function selectDefaultModelForAvailableProvider() {
 	for (const provider of providers) {
 		const models = getModels(provider as any);
 		if (models.length > 0) {
-			agent.setModel(models[0]);
+			agent.state.model = models[0];
 			await storage.settings.set("lastUsedModel", models[0]);
 			await updateAuthLabel();
 			renderApp();
@@ -179,12 +187,7 @@ async function hasAnyApiKey(): Promise<boolean> {
 }
 
 function openApiKeysDialog(): Promise<void> {
-	return new Promise((resolve) => {
-		SettingsDialog.open(
-			[new ApiKeysOAuthTab(), new CostsTab(), new SkillsTab(), new ProxyTab(), new AboutTab()],
-			resolve,
-		);
-	});
+	return SettingsDialog.open([new ApiKeysOAuthTab(), new CostsTab(), new SkillsTab(), new ProxyTab(), new AboutTab()]);
 }
 
 async function updateAuthLabel() {
@@ -196,6 +199,8 @@ async function updateAuthLabel() {
 	const stored = await storage.providerKeys.get(provider);
 	if (!stored) {
 		authLabel = "";
+	} else if (parseCloudflareWorkersAiCredentials(stored)) {
+		authLabel = "api key";
 	} else if (isOAuthCredentials(stored)) {
 		authLabel = "subscription";
 	} else {
@@ -234,6 +239,40 @@ const generateTitle = (messages: AgentMessage[]): string => {
 	}
 	return text.length <= 50 ? text : `${text.substring(0, 47)}...`;
 };
+
+async function getStoredProviderKey(provider: string) {
+	if (!isCloudflareWorkersAiProvider(provider)) return undefined;
+	return (await storage.providerKeys.get(provider)) || undefined;
+}
+
+type SitegeistStreamFn = StreamFn;
+type SitegeistStreamFnArgs = Parameters<SitegeistStreamFn>;
+
+function createSitegeistStreamFn(): SitegeistStreamFn {
+	const baseStreamFn = createStreamFn(async () => {
+		const enabled = await storage.settings.get<boolean>("proxy.enabled");
+		if (!enabled) return undefined;
+		return (await storage.settings.get<string>("proxy.url")) || undefined;
+	});
+
+	return (async (...args: SitegeistStreamFnArgs) => {
+		const [model, context, options] = args;
+		const storedProviderKey = await getStoredProviderKey(model.provider);
+		const resolvedModel = applyCloudflareWorkersAiCredentials(model, storedProviderKey);
+		return baseStreamFn(resolvedModel, context, options) as unknown as ReturnType<SitegeistStreamFn>;
+	}) as SitegeistStreamFn;
+}
+
+async function handleModelSelected(model: Model<any>) {
+	await storage.settings.set("lastUsedModel", model);
+	await updateAuthLabel();
+	chatPanel.agentInterface?.requestUpdate();
+	renderApp();
+
+	if (currentSessionId) {
+		await saveSession();
+	}
+}
 
 const shouldSaveSession = (messages: AgentMessage[]): boolean => {
 	const hasUserMsg = messages.some((m: AgentMessage) => m.role === "user");
@@ -388,11 +427,7 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 		},
 		convertToLlm: browserMessageTransformer,
 		toolExecution: "sequential",
-		streamFn: createStreamFn(async () => {
-			const enabled = await storage.settings.get<boolean>("proxy.enabled");
-			if (!enabled) return undefined;
-			return (await storage.settings.get<string>("proxy.url")) || undefined;
-		}),
+		streamFn: createSitegeistStreamFn(),
 		getApiKey: async (provider: string) => {
 			const stored = await storage.providerKeys.get(provider);
 			if (!stored) return undefined;
@@ -464,23 +499,6 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 		onApiKeyRequired: async (provider: string) => {
 			return await ApiKeyOrOAuthDialog.prompt(provider);
 		},
-		onModelSelect: async () => {
-			const providers = await getProvidersWithKeys();
-			if (providers.length === 0) {
-				openApiKeysDialog();
-				return;
-			}
-			ModelSelector.open(
-				agent.state.model,
-				(model) => {
-					agent.setModel(model);
-					chatPanel.agentInterface?.requestUpdate();
-					updateAuthLabel().catch(() => {});
-					renderApp();
-				},
-				providers,
-			);
-		},
 		onBeforeSend: async () => {
 			if (!agent) return;
 
@@ -508,7 +526,7 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 			// Only add if URL changed
 			if (!lastUrl || lastUrl !== tab.url) {
 				const navMessage = await createNavigationMessage(tab.url, tab.title || "Untitled", tab.favIconUrl, tab.id);
-				agent.appendMessage(navMessage);
+				agent.state.messages = [...agent.state.messages, navMessage];
 			}
 		},
 		onCostClick: () => {
@@ -799,6 +817,12 @@ window.addEventListener(
 	true,
 ); // Use capture phase to intercept Escape before it reaches MessageEditor
 
+window.addEventListener(SITEGEIST_MODEL_SELECTED_EVENT, (event: Event) => {
+	const model = (event as CustomEvent<Model<any>>).detail;
+	if (!model) return;
+	handleModelSelected(model).catch((err) => console.error("Failed to apply selected model:", err));
+});
+
 // ============================================================================
 // TEST STEPS FROM DEBUGGER.TS
 // ============================================================================
@@ -997,7 +1021,7 @@ async function initApp() {
 				await createAgent();
 				if (agent) {
 					const welcomeMessage = createWelcomeMessage(tutorials);
-					agent.appendMessage(welcomeMessage);
+					agent.state.messages = [...agent.state.messages, welcomeMessage];
 				}
 				renderApp();
 				return;
@@ -1030,7 +1054,7 @@ async function initApp() {
 	// Add welcome message for new sessions
 	if (agent) {
 		const welcomeMessage = createWelcomeMessage(tutorials);
-		agent.appendMessage(welcomeMessage);
+		agent.state.messages = [...agent.state.messages, welcomeMessage];
 	}
 
 	renderApp();

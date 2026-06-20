@@ -1,8 +1,11 @@
+import { getProviders } from "@earendil-works/pi-ai";
+import { getAppStorage, SettingsTab } from "@earendil-works/pi-web-ui";
 import { Button } from "@mariozechner/mini-lit/dist/Button.js";
-import { getProviders } from "@mariozechner/pi-ai";
-import { getAppStorage, SettingsTab } from "@mariozechner/pi-web-ui";
 import { html, type TemplateResult } from "lit";
 import { Toast } from "../components/Toast.js";
+import { CLOUDFLARE_WORKERS_AI_PROVIDER } from "../providers/cloudflare-workers-ai.js";
+import "./CloudflareWorkersAiKeyInput.js";
+import "./SitegeistProviderKeyInput.js";
 import {
 	getOAuthProviderName,
 	isOAuthCredentials,
@@ -167,7 +170,9 @@ export class ApiKeysOAuthTab extends SettingsTab {
 	}
 
 	private renderApiKeysSection(): TemplateResult {
-		const providers = getProviders().filter((p) => !HIDDEN_PROVIDERS.has(p));
+		const allProviders = getProviders();
+		const providers = allProviders.filter((p) => !HIDDEN_PROVIDERS.has(p) && p !== CLOUDFLARE_WORKERS_AI_PROVIDER);
+		const hasCloudflareWorkersAi = allProviders.some((provider) => provider === CLOUDFLARE_WORKERS_AI_PROVIDER);
 
 		return html`
 			<div class="flex flex-col gap-6">
@@ -178,7 +183,8 @@ export class ApiKeysOAuthTab extends SettingsTab {
 					</p>
 				</div>
 				<div class="flex flex-col gap-6">
-					${providers.map((provider) => html`<provider-key-input .provider=${provider}></provider-key-input>`)}
+					${hasCloudflareWorkersAi ? html`<cloudflare-workers-ai-key-input></cloudflare-workers-ai-key-input>` : ""}
+					${providers.map((provider) => html`<sitegeist-provider-key-input .provider=${provider}></sitegeist-provider-key-input>`)}
 				</div>
 			</div>
 		`;

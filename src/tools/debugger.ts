@@ -1,13 +1,13 @@
-import type { AgentTool } from "@mariozechner/pi-agent-core";
-import { StringEnum, type ToolResultMessage } from "@mariozechner/pi-ai";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { ToolResultMessage } from "@earendil-works/pi-ai";
+import { type Static, Type } from "@earendil-works/pi-ai/base";
 import {
 	registerToolRenderer,
 	renderCollapsibleHeader,
 	renderHeader,
 	type ToolRenderer,
 	type ToolRenderResult,
-} from "@mariozechner/pi-web-ui";
-import { type Static, Type } from "@sinclair/typebox";
+} from "@earendil-works/pi-web-ui";
 import { html } from "lit";
 import { createRef, ref } from "lit/directives/ref.js";
 import { Bug } from "lucide";
@@ -16,8 +16,12 @@ import { Bug } from "lucide";
 // TYPES
 // ============================================================================
 
+function stringEnum<const T extends readonly string[]>(values: T, options?: Parameters<typeof Type.String>[0]) {
+	return Type.Unsafe<T[number]>({ type: "string", enum: [...values], ...options });
+}
+
 const debuggerSchema = Type.Object({
-	action: StringEnum(["eval", "cookies"], {
+	action: stringEnum(["eval", "cookies"], {
 		description: "Action to perform",
 	}),
 	code: Type.Optional(
@@ -66,9 +70,10 @@ CRITICAL: Use browserjs() and repl tool for DOM manipulation. Use this ONLY for 
 
 	async execute(
 		_toolCallId: string,
-		args: DebuggerParams,
+		params: unknown,
 		signal?: AbortSignal,
 	): Promise<{ content: Array<{ type: "text"; text: string }>; details: DebuggerResult }> {
+		const args = params as DebuggerParams;
 		if (signal?.aborted) {
 			throw new Error("Debugger command aborted");
 		}
