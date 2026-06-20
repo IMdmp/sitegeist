@@ -15,6 +15,7 @@
 - Cloudflare Workers AI model selector missing newer hosted models, including GLM-5.2
 - Model selector not refreshing the selected model after choosing a Cloudflare Workers AI model
 - Cloudflare Workers AI requests not applying the saved Account ID during streaming
+- Dependency audit vulnerabilities in the extension and static site toolchains
 
 ## [1.0.0] - 2026-03-15
 
