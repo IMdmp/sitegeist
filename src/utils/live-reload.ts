@@ -1,4 +1,6 @@
 // Dev mode hot reload - check if we're in development
+let reloadScheduled = false;
+
 const connectWebSocket = () => {
 	try {
 		const ws = new WebSocket("ws://localhost:8765");
@@ -9,9 +11,10 @@ const connectWebSocket = () => {
 
 		ws.onmessage = (event) => {
 			const data = JSON.parse(event.data);
-			if (data.type === "reload") {
-				console.log("[HotReload] Reloading extension...");
-				chrome.runtime.reload();
+			if (data.type === "reload" && !reloadScheduled) {
+				reloadScheduled = true;
+				console.log("[HotReload] Reloading extension page...");
+				window.setTimeout(() => window.location.reload(), 50);
 			}
 		};
 

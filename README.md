@@ -77,6 +77,79 @@ Runs formatting, linting, and type checking for the extension and the `site/` su
 
 The Husky pre-commit hook runs the same checks before each commit.
 
+## CLI bridge
+
+Sitegeist can expose the active browser tab to terminal agents through a local WebSocket bridge.
+
+Build and link the CLI once:
+
+```bash
+cd cli
+npm install
+npm run build
+npm link
+```
+
+Start the bridge in a terminal:
+
+```bash
+sitegeist bridge
+```
+
+The bridge listens on `ws://127.0.0.1:17373` by default.
+
+Open the Sitegeist side panel in Chrome so the extension connects to the bridge, then run:
+
+```bash
+sitegeist tabs
+sitegeist active
+sitegeist navigate https://example.com
+sitegeist eval 'document.title'
+sitegeist click 'button[type="submit"]'
+sitegeist type 'input[name="email"]' 'you@example.com'
+sitegeist press Enter
+sitegeist screenshot --out /tmp/sitegeist-shot.png
+sitegeist evidence --out /tmp/sitegeist-evidence.json
+sitegeist case --out /tmp/sitegeist-case.md
+```
+
+To let Sitegeist chat hand browser evidence to a local coding harness, start the bridge with a review command:
+
+```bash
+sitegeist bridge --review-command 'node /path/to/review-page-issue.mjs'
+```
+
+You can also use `SITEGEIST_REVIEW_COMMAND` instead of the flag. When the chat calls the `local_agent_review` tool, the bridge passes a JSON payload to the command on stdin:
+
+```json
+{
+  "protocolVersion": 1,
+  "command": "review_page_issue",
+  "request": {
+    "problem": "Poster image is broken",
+    "workspaceHint": "anopalabas.com",
+    "evidence": {
+      "active": {
+        "url": "https://example.com/movie/example",
+        "title": "Example"
+      },
+      "page": {
+        "url": "https://example.com/movie/example",
+        "title": "Example",
+        "visibleText": "..."
+      }
+    }
+  },
+  "receivedAt": "2026-07-06T00:00:00.000Z"
+}
+```
+
+The command should print its review to stdout. This keeps the browser extension independent from the local harness: the command can call Pi, Codex, Claude Code, a project-specific checker, or any other local agent.
+
+The command is configured when you start the local bridge. Web pages cannot choose the command, and browser-origin bridge commands are rejected unless they come from the Sitegeist extension connection.
+
+The extension behaves normally when the bridge is not running.
+
 ## Building
 
 ```bash

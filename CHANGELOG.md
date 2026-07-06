@@ -5,6 +5,8 @@
 ### Added
 
 - Cloudflare Workers AI as a configurable AI provider with account ID and API token settings
+- Local `sitegeist` CLI bridge for tab listing, navigation, page eval, trusted browser input, screenshots, raw evidence capture, and Markdown case files from the active browser tab
+- `local_agent_review` chat tool for sending current-page evidence to an operator-configured local review command
 
 ### Changed
 
@@ -12,6 +14,8 @@
 
 ### Fixed
 
+- Chat messages disappearing or leaving the composer stuck in stop mode after completed turns
+- Dev hot reload invalidating a sidepanel page opened as a normal browser tab
 - Cloudflare Workers AI model selector missing newer hosted models, including GLM-5.2
 - Model selector not refreshing the selected model after choosing a Cloudflare Workers AI model
 - Cloudflare Workers AI requests not applying the saved Account ID during streaming

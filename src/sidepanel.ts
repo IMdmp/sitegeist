@@ -23,6 +23,7 @@ import {
 } from "@earendil-works/pi-web-ui";
 import { html, render } from "lit";
 import { History, Plus, Settings } from "lucide";
+import { startCliBridgeClient } from "./cli-bridge.js";
 import { AboutTab } from "./dialogs/AboutTab.js";
 import { ApiKeyOrOAuthDialog } from "./dialogs/ApiKeyOrOAuthDialog.js";
 import { ApiKeysOAuthTab } from "./dialogs/ApiKeysOAuthTab.js";
@@ -49,10 +50,17 @@ import {
 	isCloudflareWorkersAiProvider,
 	parseCloudflareWorkersAiCredentials,
 } from "./providers/cloudflare-workers-ai.js";
+import {
+	buildSessionPreview,
+	generateSessionTitle,
+	isUserConversationMessage,
+	shouldSaveSession,
+} from "./session-state.js";
 import { SitegeistAppStorage } from "./storage/app-storage.js";
 import { DebuggerTool } from "./tools/debugger.js";
 import { ExtractImageTool, registerExtractImageRenderer } from "./tools/extract-image.js";
 import { AskUserWhichElementTool, skillTool } from "./tools/index.js";
+import { LocalAgentReviewTool, registerLocalAgentReviewRenderer } from "./tools/local-agent.js";
 import { NativeInputEventsRuntimeProvider } from "./tools/NativeInputEventsRuntimeProvider.js";
 import { isToolNavigating, NavigateTool } from "./tools/navigate.js";
 import { createReplTool } from "./tools/repl/repl.js";
@@ -66,6 +74,7 @@ import { tutorials } from "./tutorials.js";
 installSitegeistModelSelector();
 registerNavigationRenderer();
 registerExtractImageRenderer();
+registerLocalAgentReviewRenderer();
 
 // Listen for abort messages from REPL overlay
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -100,6 +109,7 @@ let agent: Agent;
 let chatPanel: ChatPanel;
 let agentUnsubscribe: (() => void) | undefined;
 let currentWindowId: number;
+let postAgentEndRenderTimer: number | undefined;
 
 // Track which skills we've shown in full (skillName -> lastUpdated timestamp)
 // Reset when a new session/agent is created
@@ -216,30 +226,6 @@ export function getShownSkills(): Map<string, string> {
 // ============================================================================
 // HELPERS
 // ============================================================================
-const generateTitle = (messages: AgentMessage[]): string => {
-	const firstUserMsg = messages.find((m) => m.role === "user");
-	if (!firstUserMsg || firstUserMsg.role !== "user") return "";
-
-	let text = "";
-	const content = firstUserMsg.content;
-
-	if (typeof content === "string") {
-		text = content;
-	} else {
-		const textBlocks = content.filter((c) => c.type === "text");
-		text = textBlocks.map((c) => c.text || "").join(" ");
-	}
-
-	text = text.trim();
-	if (!text) return "";
-
-	const sentenceEnd = text.search(/[.!?]/);
-	if (sentenceEnd > 0 && sentenceEnd <= 50) {
-		return text.substring(0, sentenceEnd + 1);
-	}
-	return text.length <= 50 ? text : `${text.substring(0, 47)}...`;
-};
-
 async function getStoredProviderKey(provider: string) {
 	if (!isCloudflareWorkersAiProvider(provider)) return undefined;
 	return (await storage.providerKeys.get(provider)) || undefined;
@@ -263,6 +249,15 @@ function createSitegeistStreamFn(): SitegeistStreamFn {
 	}) as SitegeistStreamFn;
 }
 
+function schedulePostAgentEndRender() {
+	if (postAgentEndRenderTimer !== undefined) return;
+	postAgentEndRenderTimer = window.setTimeout(() => {
+		postAgentEndRenderTimer = undefined;
+		chatPanel.agentInterface?.requestUpdate();
+		renderApp();
+	}, 0);
+}
+
 async function handleModelSelected(model: Model<any>) {
 	await storage.settings.set("lastUsedModel", model);
 	await updateAuthLabel();
@@ -273,12 +268,6 @@ async function handleModelSelected(model: Model<any>) {
 		await saveSession();
 	}
 }
-
-const shouldSaveSession = (messages: AgentMessage[]): boolean => {
-	const hasUserMsg = messages.some((m: AgentMessage) => m.role === "user");
-	const hasAssistantMsg = messages.some((m: AgentMessage) => m.role === "assistant");
-	return hasUserMsg && hasAssistantMsg;
-};
 
 const saveSession = async () => {
 	if (!storage.sessions || !currentSessionId || !agent || !currentTitle) return;
@@ -314,28 +303,7 @@ const saveSession = async () => {
 			}
 		}
 
-		// Generate preview text (first 2KB of user + assistant text)
-		let preview = "";
-		for (const msg of state.messages) {
-			if (preview.length >= 2048) break;
-			if (msg.role === "user") {
-				const text =
-					typeof msg.content === "string"
-						? msg.content
-						: msg.content
-								.filter((c) => c.type === "text")
-								.map((c) => c.text)
-								.join("\n") || "";
-				preview += `${text}\n`;
-			} else if (msg.role === "assistant") {
-				const text = msg.content
-					.filter((c) => c.type === "text" || c.type === "thinking")
-					.map((c) => (c.type === "text" ? c.text : c.thinking))
-					.join("\n");
-				preview += `${text}\n`;
-			}
-		}
-		preview = preview.substring(0, 2048);
+		const preview = buildSessionPreview(state.messages);
 
 		// Preserve createdAt if session already exists
 		const existingMetadata = await storage.sessions.getMetadata(currentSessionId);
@@ -450,6 +418,18 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 			// Update auth label when model changes
 			updateAuthLabel().catch(() => {});
 
+			if (event.type === "message_end") {
+				// Agent appends to the transcript in place. Give Lit children a fresh
+				// array identity so completed user/tool/assistant messages render.
+				agent.state.messages = [...messages];
+			}
+
+			if (event.type === "agent_end") {
+				// Agent emits agent_end before finishRun clears isStreaming.
+				// Refresh once more after that flip so the editor leaves stop mode.
+				schedulePostAgentEndRender();
+			}
+
 			if (
 				event.type === "message_end" &&
 				event.message.role === "assistant" &&
@@ -464,7 +444,7 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 			}
 
 			if (!currentTitle && shouldSaveSession(messages)) {
-				currentTitle = generateTitle(messages);
+				currentTitle = generateSessionTitle(messages);
 			}
 
 			if (!currentSessionId && shouldSaveSession(messages)) {
@@ -563,6 +543,8 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 
 			const extractImageTool = new ExtractImageTool();
 			extractImageTool.windowId = currentWindowId;
+			const localAgentReviewTool = new LocalAgentReviewTool();
+			localAgentReviewTool.windowId = currentWindowId;
 
 			const tools: AgentTool<any, any>[] = [
 				navigateTool,
@@ -571,6 +553,7 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 				skillTool,
 				extractDocumentTool,
 				extractImageTool,
+				localAgentReviewTool,
 			];
 
 			// Conditionally add debugger tool if enabled
@@ -589,14 +572,14 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 
 		// Only disable auto-scroll for new sessions with welcome message
 		// Check if this is a fresh session (only has welcome message, no user messages)
-		const hasUserMessage = agent.state.messages.some((m) => m.role === "user");
+		const hasUserMessage = agent.state.messages.some(isUserConversationMessage);
 		if (!hasUserMessage) {
 			chatPanel.agentInterface.setAutoScroll(false);
 
 			// Re-enable auto-scroll on first user message
 			let unsubscribe: (() => void) | undefined;
 			unsubscribe = agent.subscribe(() => {
-				const hasUserMsg = agent.state.messages.some((m) => m.role === "user");
+				const hasUserMsg = agent.state.messages.some(isUserConversationMessage);
 				if (hasUserMsg && unsubscribe) {
 					chatPanel.agentInterface?.setAutoScroll(true);
 					unsubscribe();
@@ -952,6 +935,7 @@ async function initApp() {
 
 	// Initialize port communication system
 	port.initialize(currentWindowId);
+	startCliBridgeClient(() => currentWindowId);
 
 	// TODO reenable Request persistent storage
 	// if (storage.sessions) {

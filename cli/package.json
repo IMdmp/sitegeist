@@ -1,0 +1,21 @@
+{
+	"name": "sitegeist-cli",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"bin": {
+		"sitegeist": "./dist/cli.js"
+	},
+	"scripts": {
+		"build": "esbuild cli.ts --bundle --platform=node --format=esm --outfile=dist/cli.js --external:ws",
+		"check": "tsc --noEmit && npm run build"
+	},
+	"dependencies": {
+		"ws": "^8.21.0"
+	},
+	"devDependencies": {
+		"@types/node": "^24.5.2",
+		"esbuild": "^0.25.10",
+		"typescript": "^6.0.3"
+	}
+}
