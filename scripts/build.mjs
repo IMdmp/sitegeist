@@ -47,6 +47,8 @@ const buildOptions = {
 	alias: {
 		process: join(packageRoot, "scripts/process-shim.js"),
 		"@mariozechner/mini-lit": join(packageRoot, "node_modules/@mariozechner/mini-lit"),
+		"pdfjs-dist/build/pdf.worker.min.mjs": join(packageRoot, "node_modules/pdfjs-dist/build/pdf.worker.min.mjs"),
+		"pdfjs-dist": join(packageRoot, "node_modules/pdfjs-dist/build/pdf.mjs"),
 		"typebox/compile": join(packageRoot, "node_modules/typebox/build/compile/index.mjs"),
 		"typebox/value": join(packageRoot, "node_modules/typebox/build/value/index.mjs"),
 		typebox: join(packageRoot, "node_modules/typebox/build/index.mjs"),
