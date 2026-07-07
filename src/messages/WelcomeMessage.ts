@@ -3,7 +3,8 @@ import type { AgentInterface, MessageRenderer } from "@earendil-works/pi-web-ui"
 import { registerMessageRenderer } from "@earendil-works/pi-web-ui";
 import { html, LitElement, type TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import "../components/OrbAnimation.js";
+import { branding } from "../branding.js";
+import "../components/BrandMascot.js";
 
 export interface TutorialPrompt {
 	label: string;
@@ -28,7 +29,7 @@ export class WelcomeMessageElement extends LitElement {
 	@property({ attribute: false }) agentInterface!: AgentInterface;
 	@property({ attribute: false }) message!: WelcomeMessage;
 
-	private taglineWords = ["automate", "write", "transform", "research", "scrape", "create"];
+	private taglineWords = branding.taglineWords;
 	private currentWordIndex = 0;
 	private intervalId?: number;
 
@@ -66,9 +67,9 @@ export class WelcomeMessageElement extends LitElement {
 			<div class="welcome-orb-container my-8 flex flex-col items-center justify-center">
 				<!-- Title and tagline first -->
 				<div class="text-center mb-8">
-					<h1 class="text-5xl font-bold mb-4">Sitegeist</h1>
+					<h1 class="text-5xl font-bold mb-4">${branding.productName}</h1>
 					<p class="text-xl text-muted-foreground">
-						Your AI companion for the web to
+						${branding.taglinePrefix}
 						<span
 							class="rotating-word inline-block min-w-[120px] text-left font-semibold text-foreground"
 							key=${this.currentWordIndex}
@@ -77,9 +78,9 @@ export class WelcomeMessageElement extends LitElement {
 					</p>
 				</div>
 
-				<!-- Three.js Orb Animation -->
+				<!-- Brand mascot -->
 				<div class="flex items-center justify-center -my-8 mb-4">
-					<orb-animation></orb-animation>
+					<brand-mascot></brand-mascot>
 				</div>
 
 				<!-- Tutorial pills -->

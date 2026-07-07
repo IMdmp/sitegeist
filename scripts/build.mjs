@@ -2,12 +2,21 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, watch } from 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, context } from "esbuild";
+import {
+	applyBrandingToManifest,
+	applyBrandingToSidepanelHtml,
+	copyBrandAssets,
+	getBrandNameFromArgs,
+	loadBrandingConfig,
+} from "./branding.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const packageRoot = join(__dirname, "..");
 const isWatch = process.argv.includes("--watch");
 const staticDir = join(packageRoot, "static");
+const brandName = getBrandNameFromArgs();
+const branding = loadBrandingConfig(brandName, packageRoot);
 
 // Chrome only
 const targetBrowser = "chrome";
@@ -38,6 +47,7 @@ const buildOptions = {
 		".tsx": "tsx",
 	},
 	define: {
+		__BRANDING_JSON__: JSON.stringify(JSON.stringify(branding)),
 		"process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? (isWatch ? "development" : "production")),
 		"process.env.TARGET_BROWSER": JSON.stringify(targetBrowser),
 		global: "globalThis",
@@ -69,6 +79,7 @@ const copyStatic = () => {
 	const manifestSource = join(packageRoot, `static/manifest.${targetBrowser}.json`);
 	const manifestDest = join(outDir, "manifest.json");
 	copyFileSync(manifestSource, manifestDest);
+	applyBrandingToManifest(manifestDest, branding);
 
 	// Copy all files from static/ directory (except manifest files)
 	const staticFiles = getStaticFiles();
@@ -81,6 +92,7 @@ const copyStatic = () => {
 		const destination = join(outDir, filename);
 		copyFileSync(source, destination);
 	}
+	applyBrandingToSidepanelHtml(join(outDir, "sidepanel.html"), branding);
 
 	// Copy PDF.js worker from node_modules (check both local and monorepo root)
 	let pdfWorkerSource = join(packageRoot, "node_modules/pdfjs-dist/build/pdf.worker.min.mjs");
@@ -91,8 +103,9 @@ const copyStatic = () => {
 	mkdirSync(pdfWorkerDestDir, { recursive: true });
 	const pdfWorkerDest = join(pdfWorkerDestDir, "pdf.worker.min.mjs");
 	copyFileSync(pdfWorkerSource, pdfWorkerDest);
+	copyBrandAssets(packageRoot, outDir, brandName, branding);
 
-	console.log(`Built for ${targetBrowser} in ${outDir}`);
+	console.log(`Built ${branding.productName} for ${targetBrowser} in ${outDir}`);
 };
 
 const run = async () => {

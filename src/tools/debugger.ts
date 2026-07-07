@@ -11,6 +11,7 @@ import {
 import { html } from "lit";
 import { createRef, ref } from "lit/directives/ref.js";
 import { Bug } from "lucide";
+import { branding } from "../branding.js";
 
 // ============================================================================
 // TYPES
@@ -96,7 +97,7 @@ CRITICAL: Use browserjs() and repl tool for DOM manipulation. Use this ONLY for 
 					throw new Error(
 						`TELL THE USER: Cookie access is not available. The "cookies" permission needs to be added to the extension manifest.\n\n` +
 							`INSTRUCT THE USER TO:\n` +
-							`1. Find where you unpacked the Sitegeist extension files on your computer\n` +
+							`1. Find where you unpacked the ${branding.productName} extension files on your computer\n` +
 							`2. Open the manifest.json file in a text editor\n` +
 							`3. Find the "permissions" array\n` +
 							`4. Add "cookies" to the array if it's not already there. Example:\n\n` +
@@ -107,7 +108,7 @@ CRITICAL: Use browserjs() and repl tool for DOM manipulation. Use this ONLY for 
 							`   ]\n\n` +
 							`5. Save the file\n` +
 							`6. Go to chrome://extensions (or about:addons for Firefox)\n` +
-							`7. Click the reload/refresh button (circular arrow icon) on the Sitegeist extension card\n` +
+							`7. Click the reload/refresh button (circular arrow icon) on the ${branding.productName} extension card\n` +
 							`8. Try the cookies command again\n\n` +
 							`THEN: Ask the user to confirm when they've completed these steps so you can retry.`,
 					);

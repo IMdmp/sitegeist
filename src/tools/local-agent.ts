@@ -9,9 +9,10 @@ import {
 } from "@earendil-works/pi-web-ui";
 import { html } from "lit";
 import { Cable } from "lucide";
+import { brandCliCommand, branding } from "../branding.js";
 import { capturePageCase, isLocalBridgeConnected, requestLocalAgentReview } from "../cli-bridge.js";
 
-const LOCAL_AGENT_REVIEW_DESCRIPTION = `Ask a local Sitegeist bridge to investigate the current page against local workspace files, generated data, git state, or a coding harness.
+const LOCAL_AGENT_REVIEW_DESCRIPTION = `Ask a local ${branding.productName} bridge to investigate the current page against local workspace files, generated data, git state, or a coding harness.
 
 Use this when the user wants to check local files, compare a prod or localhost page with the repo, diagnose site data issues, or hand browser evidence to a local coding agent.`;
 
@@ -90,7 +91,9 @@ export class LocalAgentReviewTool implements AgentTool<typeof localAgentReviewSc
 			throw new Error("windowId not set on LocalAgentReviewTool");
 		}
 		if (!isLocalBridgeConnected()) {
-			throw new Error("Local Sitegeist bridge is not connected. Start it with `sitegeist bridge` and try again.");
+			throw new Error(
+				`Local ${branding.productName} bridge is not connected. Start it with \`${brandCliCommand()} bridge\` and try again.`,
+			);
 		}
 
 		const evidence = await capturePageCase(!!args.includeScreenshot, this.windowId);
