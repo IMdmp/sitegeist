@@ -15,9 +15,10 @@ If the user did not give you a concrete task, read README.md first.
 - Always ask before removing functionality or code that appears intentional
 
 ## Dependencies
-- `@mariozechner/mini-lit`, `@mariozechner/pi-ai`, `@mariozechner/pi-web-ui`, `@mariozechner/pi-agent-core` are linked via `file:` to sibling repos `../mini-lit` and `../pi-mono`
-- Changes to those packages require rebuilding them (the dev watcher handles this)
-- If you need to modify upstream code, edit it in `../pi-mono` or `../mini-lit` directly and rebuild
+- `@mariozechner/mini-lit` is linked via `file:../mini-lit`
+- `@earendil-works/pi-ai`, `@earendil-works/pi-web-ui`, and `@earendil-works/pi-agent-core` are installed from npm
+- Changes to `../mini-lit` require rebuilding it (the dev watcher handles this)
+- If you need to modify `mini-lit` upstream code, edit it in `../mini-lit` directly and rebuild
 
 ## Changelog
 Location: `CHANGELOG.md`

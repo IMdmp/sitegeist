@@ -53,7 +53,7 @@ Renderers should handle all execution states:
 ### Registration
 
 ```typescript
-import { registerToolRenderer } from "@mariozechner/pi-web-ui";
+import { registerToolRenderer } from "@earendil-works/pi-web-ui";
 
 registerToolRenderer("tool_name", toolRenderer);
 ```
@@ -118,6 +118,7 @@ const navigateRenderer: ToolRenderer<NavigateParams, NavigateResult> = {
 - `skill` - Skill management operations (list, get, create, update, delete, patch)
 - `navigate` - Page navigation with favicon display
 - `debugger` - Browser debugger tool
+- `local_agent_review` - Local bridge handoff for reviewing the current page with a local command or coding harness
 
 ## Best Practices
 
@@ -163,10 +164,10 @@ Use `isCustom: false` when:
 ## Files
 
 **Core:**
-- `pi-mono/packages/web-ui/src/tools/types.ts` - Interfaces
-- `pi-mono/packages/web-ui/src/tools/renderer-registry.ts` - Registration
-- `pi-mono/packages/web-ui/src/components/Messages.ts` - Rendering logic
+- `node_modules/@earendil-works/pi-web-ui/dist/tools/types.d.ts` - Interfaces
+- `node_modules/@earendil-works/pi-web-ui/dist/tools/renderer-registry.d.ts` - Registration
+- `node_modules/@earendil-works/pi-web-ui/dist/components/Messages.d.ts` - Rendering types
 
 **Renderers:**
-- `pi-mono/packages/web-ui/src/tools/renderers/` - Built-in renderers
+- `node_modules/@earendil-works/pi-web-ui/dist/tools/renderers/` - Built-in renderers
 - `sitegeist/src/tools/` - Extension-specific renderers

@@ -31,7 +31,7 @@ export async function initializeDefaultSkills() {
 	for (const skill of defaultSkills) {
 		const existing = await skillsRepo.getSkill(skill.name);
 		if (!existing) {
-			await skillsRepo.saveSkill(skill);
+			await skillsRepo.saveSkill(skill, { snapshot: false });
 		}
 	}
 }
@@ -80,7 +80,7 @@ function checkForNavigation(code: string): { hasNavigation: boolean; warning?: s
  * Validate JavaScript syntax using sandboxed iframe (CSP-compliant).
  * Returns { valid: true } or { valid: false, error: string }
  */
-async function validateJavaScriptSyntax(code: string): Promise<{ valid: boolean; error?: string }> {
+export async function validateJavaScriptSyntax(code: string): Promise<{ valid: boolean; error?: string }> {
 	// First check for navigation attempts
 	const navCheck = checkForNavigation(code);
 	if (navCheck.hasNavigation) {
@@ -294,7 +294,7 @@ export const skillTool: AgentTool<typeof skillParamsSchema, any> = {
 					throw new Error(validation.error);
 				}
 
-				await skillsRepo.saveSkill(newSkill);
+				await skillsRepo.saveSkill(newSkill, { source: "agent" });
 
 				return {
 					content: [{ type: "text", text: `Skill '${args.data.name}' created.` }],
@@ -343,7 +343,7 @@ export const skillTool: AgentTool<typeof skillParamsSchema, any> = {
 				if (newName && newName !== existing.name) {
 					await skillsRepo.deleteSkill(args.name);
 				}
-				await skillsRepo.saveSkill(updated);
+				await skillsRepo.saveSkill(updated, { source: "agent" });
 
 				return {
 					content: [{ type: "text", text: `Skill '${args.name}' rewritten.` }],
@@ -439,7 +439,7 @@ export const skillTool: AgentTool<typeof skillParamsSchema, any> = {
 				if (newName) {
 					await skillsRepo.deleteSkill(args.name);
 				}
-				await skillsRepo.saveSkill(updated);
+				await skillsRepo.saveSkill(updated, { source: "agent" });
 
 				return {
 					content: [{ type: "text", text: `Skill '${args.name}' updated.` }],

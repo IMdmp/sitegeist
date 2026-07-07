@@ -1,11 +1,14 @@
 import { SettingsTab } from "@earendil-works/pi-web-ui";
 import { Button } from "@mariozechner/mini-lit/dist/Button.js";
+import { Diff } from "@mariozechner/mini-lit/dist/Diff.js";
 import { Input } from "@mariozechner/mini-lit/dist/Input.js";
 import { html } from "lit";
 import { Toast } from "../components/Toast.js";
 import { getSitegeistStorage } from "../storage/app-storage.js";
-import type { Skill } from "../storage/stores/skills-store.js";
+import type { Skill, SkillVersionSnapshot } from "../storage/stores/skills-store.js";
+import { validateJavaScriptSyntax } from "../tools/skill.js";
 import { getFaviconUrl } from "../utils/favicon.js";
+import { parseAndValidateSkillsJson } from "../utils/skill-import.js";
 
 export class SkillsTab extends SettingsTab {
 	label = "Skills";
@@ -13,8 +16,12 @@ export class SkillsTab extends SettingsTab {
 	private filteredSkills: Skill[] = [];
 	private searchQuery = "";
 	private editingSkill: Skill | null = null;
+	private historySkill: Skill | null = null;
+	private historySnapshots: SkillVersionSnapshot[] = [];
 	private importConflicts: { skill: Skill; selected: boolean }[] = [];
 	private importedSkills: Skill[] = [];
+	private remoteInstallSkills: Skill[] = [];
+	private remoteInstallUrl = "";
 
 	getTabName(): string {
 		return this.label;
@@ -78,7 +85,7 @@ export class SkillsTab extends SettingsTab {
 			...this.editingSkill,
 			lastUpdated: new Date().toISOString(),
 		};
-		await storage.skills.save(toSave);
+		await storage.skills.save(toSave, { source: "user" });
 		this.editingSkill = null;
 		await this.loadSkills();
 	}
@@ -119,40 +126,58 @@ export class SkillsTab extends SettingsTab {
 
 			try {
 				const text = await file.text();
-				const imported = JSON.parse(text) as Skill[];
-
-				if (!Array.isArray(imported)) {
-					Toast.error("Invalid skills file: expected an array of skills");
-					return;
-				}
-
-				// Store imported skills for later
-				this.importedSkills = imported;
-
-				// Check for conflicts
-				const storage = getSitegeistStorage();
-				const conflicts: { skill: Skill; selected: boolean }[] = [];
-
-				for (const skill of imported) {
-					const existing = await storage.skills.get(skill.name);
-					if (existing) {
-						conflicts.push({ skill, selected: true });
-					}
-				}
-
-				if (conflicts.length > 0) {
-					// Show conflict resolution UI
-					this.importConflicts = conflicts;
-					this.requestUpdate();
-				} else {
-					// No conflicts, import all
-					await this.performImport(imported);
-				}
+				const imported = await parseAndValidateSkillsJson(text, validateJavaScriptSyntax);
+				await this.startImport(imported);
 			} catch (error) {
 				Toast.error(`Failed to import skills: ${(error as Error).message}`);
 			}
 		};
 		input.click();
+	}
+
+	async installFromUrl() {
+		const url = prompt("Skill JSON URL");
+		if (!url) return;
+
+		try {
+			const response = await fetch(url);
+			if (!response.ok) {
+				throw new Error(`Request failed with ${response.status} ${response.statusText}`);
+			}
+
+			const imported = await parseAndValidateSkillsJson(await response.text(), validateJavaScriptSyntax);
+			this.remoteInstallSkills = imported;
+			this.remoteInstallUrl = url;
+			this.importConflicts = [];
+			this.importedSkills = [];
+			this.requestUpdate();
+		} catch (error) {
+			Toast.error(`Failed to install skills from URL: ${(error as Error).message}`);
+		}
+	}
+
+	async startImport(skills: Skill[]) {
+		this.importedSkills = skills;
+		this.remoteInstallSkills = [];
+		this.remoteInstallUrl = "";
+
+		const storage = getSitegeistStorage();
+		const conflicts: { skill: Skill; selected: boolean }[] = [];
+
+		for (const skill of skills) {
+			const existing = await storage.skills.get(skill.name);
+			if (existing) {
+				conflicts.push({ skill, selected: true });
+			}
+		}
+
+		if (conflicts.length > 0) {
+			this.importConflicts = conflicts;
+			this.requestUpdate();
+			return;
+		}
+
+		await this.performImport(skills);
 	}
 
 	async performImport(skills: Skill[]) {
@@ -164,11 +189,14 @@ export class SkillsTab extends SettingsTab {
 
 		let imported = 0;
 		for (const skill of toImport) {
-			await storage.skills.save(skill);
+			await storage.skills.save(skill, { source: "user" });
 			imported++;
 		}
 
 		this.importConflicts = [];
+		this.importedSkills = [];
+		this.remoteInstallSkills = [];
+		this.remoteInstallUrl = "";
 		await this.loadSkills();
 		Toast.success(`Imported ${imported} skill(s)`);
 	}
@@ -178,9 +206,45 @@ export class SkillsTab extends SettingsTab {
 		this.requestUpdate();
 	}
 
+	async showHistory(skill: Skill) {
+		this.historySkill = skill;
+		const storage = getSitegeistStorage();
+		this.historySnapshots = await storage.skills.getHistory(skill.name);
+		this.requestUpdate();
+	}
+
+	closeHistory() {
+		this.historySkill = null;
+		this.historySnapshots = [];
+		this.requestUpdate();
+	}
+
+	async restoreHistorySnapshot(snapshot: SkillVersionSnapshot) {
+		if (!this.historySkill) return;
+
+		const storage = getSitegeistStorage();
+		await storage.skills.restoreVersion(this.historySkill.name, snapshot.id, "user");
+		await this.loadSkills();
+		const restoredSkill = await storage.skills.get(this.historySkill.name);
+		if (restoredSkill) {
+			this.historySkill = restoredSkill;
+			this.historySnapshots = await storage.skills.getHistory(restoredSkill.name);
+		}
+		Toast.success(`Restored "${snapshot.skillName}" from history`);
+		this.requestUpdate();
+	}
+
 	cancelImport() {
 		this.importConflicts = [];
 		this.importedSkills = [];
+		this.remoteInstallSkills = [];
+		this.remoteInstallUrl = "";
+		this.requestUpdate();
+	}
+
+	cancelRemoteInstall() {
+		this.remoteInstallSkills = [];
+		this.remoteInstallUrl = "";
 		this.requestUpdate();
 	}
 
@@ -203,6 +267,12 @@ export class SkillsTab extends SettingsTab {
 								children: "Edit",
 							})}
 							${Button({
+								variant: "outline",
+								size: "sm",
+								onClick: () => this.showHistory(skill),
+								children: "History",
+							})}
+							${Button({
 								variant: "destructive",
 								size: "sm",
 								onClick: () => this.deleteSkill(skill),
@@ -211,6 +281,74 @@ export class SkillsTab extends SettingsTab {
 						</div>
 					</div>
 				</div>
+			</div>
+		`;
+	}
+
+	formatSkillForDiff(skill: Skill) {
+		return [
+			`Name: ${skill.name}`,
+			`Domains: ${skill.domainPatterns.join(", ")}`,
+			`Short Description: ${skill.shortDescription}`,
+			`Description:\n${skill.description}`,
+			`Examples:\n${skill.examples}`,
+			`Library:\n${skill.library}`,
+		].join("\n\n");
+	}
+
+	renderSkillHistory() {
+		if (!this.historySkill) return null;
+
+		const currentSkill = this.skills.find((skill) => skill.name === this.historySkill?.name) || this.historySkill;
+
+		return html`
+			<div class="border border-border rounded-lg p-4 bg-card space-y-4">
+				<div class="flex items-start justify-between gap-3">
+					<div>
+						<h3 class="font-semibold text-foreground">History: ${this.historySkill.name}</h3>
+						<p class="text-sm text-muted-foreground">${this.historySnapshots.length} saved version(s)</p>
+					</div>
+					${Button({
+						variant: "outline",
+						size: "sm",
+						onClick: () => this.closeHistory(),
+						children: "Close",
+					})}
+				</div>
+
+				${
+					this.historySnapshots.length === 0
+						? html`<div class="text-sm text-muted-foreground">History starts after the next saved change.</div>`
+						: html`<div class="space-y-4">
+							${this.historySnapshots.map(
+								(snapshot) => html`
+									<div class="border border-border rounded-md overflow-hidden">
+										<div class="flex items-center justify-between gap-3 px-3 py-2 bg-muted border-b border-border">
+											<div class="min-w-0">
+												<div class="text-sm font-medium text-foreground">
+													${new Date(snapshot.createdAt).toLocaleString()}
+												</div>
+												<div class="text-xs text-muted-foreground">${snapshot.source}</div>
+											</div>
+											${Button({
+												variant: "default",
+												size: "sm",
+												onClick: () => this.restoreHistorySnapshot(snapshot),
+												children: "Restore",
+											})}
+										</div>
+										<div class="p-3">
+											${Diff({
+												oldText: this.formatSkillForDiff(currentSkill),
+												newText: this.formatSkillForDiff(snapshot.skill),
+												title: "Restore preview",
+											})}
+										</div>
+									</div>
+								`,
+							)}
+						</div>`
+				}
 			</div>
 		`;
 	}
@@ -335,6 +473,44 @@ export class SkillsTab extends SettingsTab {
 		`;
 	}
 
+	renderRemoteInstallReview() {
+		if (this.remoteInstallSkills.length === 0) return null;
+
+		return html`
+			<div class="border border-border rounded-lg p-4 bg-card space-y-4">
+				<div>
+					<h3 class="font-semibold text-foreground">Install Skills from URL</h3>
+					<div class="text-xs text-muted-foreground break-all">${this.remoteInstallUrl}</div>
+				</div>
+
+				<div class="space-y-2">
+					${this.remoteInstallSkills.map(
+						(skill) => html`
+							<div class="p-3 border border-border rounded-md">
+								<div class="font-medium text-foreground">${skill.name}</div>
+								<div class="text-xs text-muted-foreground">${skill.domainPatterns.join(", ")}</div>
+								<div class="text-sm text-muted-foreground mt-1">${skill.shortDescription}</div>
+							</div>
+						`,
+					)}
+				</div>
+
+				<div class="flex justify-end gap-2">
+					${Button({
+						variant: "outline",
+						onClick: () => this.cancelRemoteInstall(),
+						children: "Cancel",
+					})}
+					${Button({
+						variant: "default",
+						onClick: () => this.startImport(this.remoteInstallSkills),
+						children: "Install",
+					})}
+				</div>
+			</div>
+		`;
+	}
+
 	render() {
 		// Show conflict resolution UI if there are conflicts
 		if (this.importConflicts.length > 0) {
@@ -347,6 +523,9 @@ export class SkillsTab extends SettingsTab {
 
 		return html`
 			<div class="flex flex-col gap-6">
+				${this.renderSkillHistory()}
+				${this.renderRemoteInstallReview()}
+
 				<p class="text-sm text-muted-foreground">
 					Manage site skills - reusable JavaScript libraries for domain-specific automation.
 				</p>
@@ -361,6 +540,11 @@ export class SkillsTab extends SettingsTab {
 						variant: "outline",
 						onClick: () => this.importSkills(),
 						children: "Import Skills",
+					})}
+					${Button({
+						variant: "outline",
+						onClick: () => this.installFromUrl(),
+						children: "Install from URL",
 					})}
 				</div>
 

@@ -16,12 +16,11 @@ Requires Chrome 141+ or Edge equivalent.
 
 ## Development
 
-Clone this repo plus its sibling dependencies into the same parent directory:
+Clone this repo plus its local sibling dependency into the same parent directory:
 
 ```
 parent/
   mini-lit/          # https://github.com/badlogic/mini-lit
-  pi-mono/           # https://github.com/badlogic/pi-mono
   sitegeist/         # this repo
 ```
 
@@ -29,19 +28,20 @@ Install dependencies in each repo:
 
 ```bash
 (cd ../mini-lit && npm install)
-(cd ../pi-mono && npm install)
 npm install
 ```
 
+The Pi runtime packages are installed from npm as `@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`, and `@earendil-works/pi-web-ui`.
+
 `npm install` sets up the Husky pre-commit hook automatically.
 
-Start all dev watchers (mini-lit, pi-mono, sitegeist extension, marketing site):
+Start all dev watchers (mini-lit, sitegeist extension, marketing site):
 
 ```bash
 ./dev.sh
 ```
 
-Changes in `../mini-lit` or `../pi-mono` are rebuilt automatically and picked up by the sitegeist watcher.
+Changes in `../mini-lit` are rebuilt automatically and picked up by the sitegeist watcher.
 
 To run only the extension watcher without dependencies or the marketing site:
 
@@ -80,6 +80,8 @@ The Husky pre-commit hook runs the same checks before each commit.
 ## CLI bridge
 
 Sitegeist can expose the active browser tab to terminal agents through a local WebSocket bridge.
+
+See [docs/local-bridge.md](docs/local-bridge.md) for the full protocol, security model, and local review adapter contract.
 
 Build and link the CLI once:
 

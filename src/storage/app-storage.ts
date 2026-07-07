@@ -35,13 +35,14 @@ export class SitegeistAppStorage extends BaseAppStorage {
 			customProviders.getConfig(),
 			sessions.getConfig(),
 			skills.getConfig(),
+			SkillsStore.getVersionsConfig(),
 			costs.getConfig(),
 		];
 
 		// 3. Create backend with all configs
 		const backend = new IndexedDBStorageBackend({
 			dbName: "sitegeist-storage",
-			version: 3, // Increment version to add custom-providers store
+			version: 4, // Increment version to add skill history store
 			stores: configs,
 		});
 

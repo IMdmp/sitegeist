@@ -7,6 +7,8 @@
 - Cloudflare Workers AI as a configurable AI provider with account ID and API token settings
 - Local `sitegeist` CLI bridge for tab listing, navigation, page eval, trusted browser input, screenshots, raw evidence capture, and Markdown case files from the active browser tab
 - `local_agent_review` chat tool for sending current-page evidence to an operator-configured local review command
+- Version history and one-click restore for saved skills
+- Skill installation from a JSON URL with validation and review before saving
 
 ### Changed
 
@@ -14,6 +16,7 @@
 
 ### Fixed
 
+- Fresh-clone development setup no longer requires the removed `../pi-mono` sibling repository
 - Chat messages disappearing or leaving the composer stuck in stop mode after completed turns
 - Dev hot reload invalidating a sidepanel page opened as a normal browser tab
 - Cloudflare Workers AI model selector missing newer hosted models, including GLM-5.2
