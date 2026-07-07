@@ -292,7 +292,10 @@ export class NativeInputEventsRuntimeProvider implements SandboxRuntimeProvider 
 	private getDragOptions(value: unknown): Required<NativeDragOptions> {
 		const options = this.getOptionsRecord(value, "nativeDrag options");
 		return {
-			steps: this.getNonNegativeNumber(options.steps, 16, "options.steps"),
+			// A drag needs at least one interpolated move between press and
+			// release; steps: 0 would collapse to a single press/release jump,
+			// which the docs warn against and many brush-zoom plugins ignore.
+			steps: this.getPositiveInteger(options.steps, 16, "options.steps"),
 			stepDelayMs: this.getNonNegativeNumber(options.stepDelayMs, 15, "options.stepDelayMs"),
 			modifiers: this.getModifierList(options.modifiers) ?? [],
 		};
