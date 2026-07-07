@@ -16,6 +16,12 @@ Single IndexedDB database `sitegeist-storage` with multiple object stores:
 
 **Extension stores** (Sitegeist-specific):
 - `skills` - Skill definitions with library code
+- `skill_versions` - Version history snapshots for skills
+- `costs` - Per-provider/model token cost tracking
+- `artifacts` - Cross-session copies of session artifacts, keyed by `${sessionId}::${filename}`
+- `memories` - Durable facts remembered across sessions (preferences, recurring context)
+
+The database version is bumped whenever the set of stores changes (currently `5`, which added `artifacts` and `memories`). See `src/storage/app-storage.ts`.
 
 **Benefits**:
 - **Quota**: ~10GB vs 10MB chrome.storage limit (60% disk on Chrome, 50% on Firefox)

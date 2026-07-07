@@ -4,6 +4,8 @@
 
 ### Added
 
+- Persistent cross-session memory: a `memory` agent tool (save/get/list/search/delete), a Memory settings view for browsing and editing, and a compact memory index injected into the system prompt at the start of each session
+- Saved Artifacts view backed by a cross-session artifact store, with search, inline preview, pin, download, and clear-unpinned
 - Cloudflare Workers AI as a configurable AI provider with account ID and API token settings
 - Local `sitegeist` CLI bridge for tab listing, navigation, page eval, trusted browser input, screenshots, raw evidence capture, and Markdown case files from the active browser tab
 - `local_agent_review` chat tool for sending current-page evidence to an operator-configured local review command
@@ -15,6 +17,7 @@
 
 ### Changed
 
+- Model selector now lists only configured providers (those with a stored API key, subscription login, or custom endpoint), with an "All providers" toggle and an empty-state prompt to add one
 - Migrated AI runtime packages from deprecated `@mariozechner/pi-*` packages to `@earendil-works/pi-*`
 
 ### Fixed

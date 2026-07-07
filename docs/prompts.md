@@ -95,8 +95,12 @@ Sitegeist-specific prompts:
 **Tool Descriptions**:
 - `REPL_TOOL_DESCRIPTION(runtimeProviderDescriptions)` - REPL with browserjs()/navigate()
 - `SKILL_TOOL_DESCRIPTION` - Skill management (get/list/create/update/rewrite/delete)
+- `MEMORY_TOOL_DESCRIPTION` - Durable memory management (save/get/list/search/delete)
 - `NAVIGATE_TOOL_DESCRIPTION` - Navigate to URLs in tabs
 - `ASK_USER_WHICH_ELEMENT_DESCRIPTION` - Element picker
+
+**Dynamic System Prompt Injection**:
+- `withMemoryIndex(basePrompt, entries)` - Appends a compact "Saved Memories" index (id + title) to the system prompt at session start. Idempotent: strips any previously-injected block (marked by an HTML comment) before re-appending, so reloaded sessions refresh rather than stack. Full memory content is fetched on demand via the `memory` tool (hybrid recall).
 
 **Runtime Provider Descriptions**:
 - `BROWSERJS_RUNTIME_DESCRIPTION` - `browserjs()` for page context execution

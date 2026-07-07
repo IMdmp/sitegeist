@@ -7,16 +7,20 @@ import {
 	SessionsStore,
 	SettingsStore,
 } from "@earendil-works/pi-web-ui";
+import { ArtifactsStore } from "./stores/artifacts-store.js";
 import { CostStore } from "./stores/cost-store.js";
+import { MemoryStore } from "./stores/memory-store.js";
 import { SitegeistSessionsStore } from "./stores/sessions-store.js";
 import { SkillsStore } from "./stores/skills-store.js";
 
 /**
- * Extended AppStorage with skills, memories, and prompts stores.
+ * Extended AppStorage with skills, memories, artifacts, and cost stores.
  */
 export class SitegeistAppStorage extends BaseAppStorage {
 	readonly skills: SkillsStore;
 	readonly costs: CostStore;
+	readonly artifacts: ArtifactsStore;
+	readonly memories: MemoryStore;
 
 	constructor() {
 		// 1. Create all stores (no backend yet)
@@ -26,6 +30,8 @@ export class SitegeistAppStorage extends BaseAppStorage {
 		const customProviders = new CustomProvidersStore();
 		const skills = new SkillsStore();
 		const costs = new CostStore();
+		const artifacts = new ArtifactsStore();
+		const memories = new MemoryStore();
 
 		// 2. Gather configs from all stores
 		const configs = [
@@ -37,12 +43,14 @@ export class SitegeistAppStorage extends BaseAppStorage {
 			skills.getConfig(),
 			SkillsStore.getVersionsConfig(),
 			costs.getConfig(),
+			artifacts.getConfig(),
+			memories.getConfig(),
 		];
 
 		// 3. Create backend with all configs
 		const backend = new IndexedDBStorageBackend({
 			dbName: "sitegeist-storage",
-			version: 4, // Increment version to add skill history store
+			version: 5, // v5: add artifacts + memories stores
 			stores: configs,
 		});
 
@@ -53,6 +61,8 @@ export class SitegeistAppStorage extends BaseAppStorage {
 		sessions.setBackend(backend);
 		skills.setBackend(backend);
 		costs.setBackend(backend);
+		artifacts.setBackend(backend);
+		memories.setBackend(backend);
 
 		// 5. Pass base stores to parent
 		super(settings, providerKeys, sessions, customProviders, backend);
@@ -60,6 +70,8 @@ export class SitegeistAppStorage extends BaseAppStorage {
 		// 6. Store references to extension-specific stores
 		this.skills = skills;
 		this.costs = costs;
+		this.artifacts = artifacts;
+		this.memories = memories;
 	}
 }
 
