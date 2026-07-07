@@ -9,6 +9,7 @@
 - `local_agent_review` chat tool for sending current-page evidence to an operator-configured local review command
 - Version history and one-click restore for saved skills
 - Skill installation from a JSON URL with validation and review before saving
+- Full-page and element-region screenshot modes for the image extraction tool
 
 ### Changed
 
