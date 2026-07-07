@@ -9,7 +9,7 @@ import {
 } from "@earendil-works/pi-web-ui";
 import { html } from "lit";
 import { Cable } from "lucide";
-import { branding } from "../branding.js";
+import { brandCliCommand, branding } from "../branding.js";
 import { capturePageCase, isLocalBridgeConnected, requestLocalAgentReview } from "../cli-bridge.js";
 
 const LOCAL_AGENT_REVIEW_DESCRIPTION = `Ask a local ${branding.productName} bridge to investigate the current page against local workspace files, generated data, git state, or a coding harness.
@@ -92,7 +92,7 @@ export class LocalAgentReviewTool implements AgentTool<typeof localAgentReviewSc
 		}
 		if (!isLocalBridgeConnected()) {
 			throw new Error(
-				`Local ${branding.productName} bridge is not connected. Start it with \`sitegeist bridge\` and try again.`,
+				`Local ${branding.productName} bridge is not connected. Start it with \`${brandCliCommand()} bridge\` and try again.`,
 			);
 		}
 

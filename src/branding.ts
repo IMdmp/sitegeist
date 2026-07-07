@@ -29,6 +29,7 @@ export interface Branding {
 		releases?: string;
 	};
 	iconsDir?: string;
+	cliCommand?: string;
 }
 
 const sitegeistFallbackBranding: Branding = {
@@ -50,6 +51,7 @@ const sitegeistFallbackBranding: Branding = {
 		homepage: "https://sitegeist.ai",
 		releases: "https://sitegeist.ai/install.html#updating",
 	},
+	cliCommand: "sitegeist",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -120,6 +122,7 @@ function normalizeBranding(value: unknown): Branding | undefined {
 			releases: typeof links.releases === "string" ? links.releases : undefined,
 		},
 		iconsDir: typeof value.iconsDir === "string" ? value.iconsDir : undefined,
+		cliCommand: typeof value.cliCommand === "string" ? value.cliCommand : undefined,
 	};
 }
 
@@ -140,9 +143,18 @@ function getInjectedBranding(): Branding | undefined {
 export const branding = getInjectedBranding() ?? sitegeistFallbackBranding;
 
 export function brandUrl(path: string): string {
-	return new URL(path, branding.links.homepage).toString();
+	// Resolve relative to the homepage *including its path*. A leading-slash path
+	// would otherwise reset to the domain root and drop a subpath homepage
+	// (e.g. https://example.com/acme + /uploads -> https://example.com/uploads).
+	const base = branding.links.homepage.endsWith("/") ? branding.links.homepage : `${branding.links.homepage}/`;
+	const relative = path.replace(/^\/+/, "");
+	return new URL(relative, base).toString();
 }
 
 export function brandReleaseUrl(): string {
 	return branding.links.releases ?? brandUrl("/install.html#updating");
+}
+
+export function brandCliCommand(): string {
+	return branding.cliCommand ?? "sitegeist";
 }

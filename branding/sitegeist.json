@@ -38,6 +38,7 @@
 		"homepage": "https://sitegeist.ai",
 		"releases": "https://sitegeist.ai/install.html#updating"
 	},
+	"cliCommand": "sitegeist",
 	"site": {
 		"pageTitle": "Sitegeist - Your AI Companion for the Web",
 		"downloadUrl": "https://github.com/badlogic/sitegeist/releases/latest",

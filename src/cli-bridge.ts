@@ -1,6 +1,6 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type { SandboxRuntimeProvider } from "@earendil-works/pi-web-ui";
-import { branding } from "./branding.js";
+import { brandCliCommand, branding } from "./branding.js";
 import { ExtractImageTool } from "./tools/extract-image.js";
 import { NativeInputEventsRuntimeProvider } from "./tools/NativeInputEventsRuntimeProvider.js";
 import { NavigateTool } from "./tools/navigate.js";
@@ -152,7 +152,7 @@ export function isLocalBridgeConnected(): boolean {
 export function requestLocalAgentReview(args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
 	if (!isLocalBridgeConnected()) {
 		throw new Error(
-			`Local ${branding.productName} bridge is not connected. Start it with \`sitegeist bridge\` and try again.`,
+			`Local ${branding.productName} bridge is not connected. Start it with \`${brandCliCommand()} bridge\` and try again.`,
 		);
 	}
 

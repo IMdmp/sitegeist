@@ -16,8 +16,13 @@ export default defineConfig({
 	plugins: [
 		{
 			name: "site-branding",
-			transformIndexHtml(html) {
-				return renderBrandTemplate(html, siteBranding);
+			// Must run before Vite parses the HTML so injected mascot <script> tags
+			// (e.g. the orb) get bundled instead of shipped as an unresolved raw .ts.
+			transformIndexHtml: {
+				order: "pre",
+				handler(html) {
+					return renderBrandTemplate(html, siteBranding);
+				},
 			},
 			generateBundle() {
 				if (!mascotAsset) {

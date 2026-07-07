@@ -27,6 +27,7 @@
 		"releases": "https://example.com/acme/releases"
 	},
 	"iconsDir": "icons",
+	"cliCommand": "acme",
 	"site": {
 		"downloadUrl": "https://example.com/acme/releases",
 		"downloadLabel": "Download",

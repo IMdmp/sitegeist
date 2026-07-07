@@ -14,6 +14,7 @@ test("loads the default Sitegeist branding config", async () => {
 	assert.deepEqual(branding.taglineWords, ["automate", "write", "transform", "research", "scrape", "create"]);
 	assert.equal(branding.mascot.type, "orb");
 	assert.equal(branding.links.homepage, "https://sitegeist.ai");
+	assert.equal(branding.cliCommand, "sitegeist");
 });
 
 test("loads a named brand and rewrites a manifest copy", async () => {
@@ -112,4 +113,5 @@ test("loads the Acme proof brand", async () => {
 	assert.equal(branding.mascot.type, "image");
 	assert.equal(branding.mascot.src, "acme-mascot.png");
 	assert.equal(branding.iconsDir, "icons");
+	assert.equal(branding.cliCommand, "acme");
 });
