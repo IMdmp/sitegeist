@@ -43,6 +43,14 @@ Start all dev watchers (mini-lit, sitegeist extension, marketing site):
 
 Changes in `../mini-lit` are rebuilt automatically and picked up by the sitegeist watcher.
 
+To create a production build:
+
+```bash
+npm run build
+```
+
+The build script compiles `../mini-lit` first so a fresh clone does not depend on pre-existing local build output.
+
 To run only the extension watcher without dependencies or the marketing site:
 
 ```bash

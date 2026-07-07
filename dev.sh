@@ -17,6 +17,9 @@ fi
 trap 'echo ""; echo "Stopping all dev servers..."; kill 0' EXIT INT TERM
 
 # Start dev servers
+echo "Building mini-lit once..."
+(cd ../mini-lit && npm run build)
+
 echo "Starting mini-lit dev server..."
 (cd ../mini-lit && npm run dev:tsc) &
 MINI_LIT_PID=$!

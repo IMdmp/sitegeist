@@ -17,6 +17,7 @@
 ### Fixed
 
 - Fresh-clone development setup no longer requires the removed `../pi-mono` sibling repository
+- Production builds now compile the local `../mini-lit` dependency before bundling Sitegeist
 - Chat messages disappearing or leaving the composer stuck in stop mode after completed turns
 - Dev hot reload invalidating a sidepanel page opened as a normal browser tab
 - Cloudflare Workers AI model selector missing newer hosted models, including GLM-5.2

@@ -7,7 +7,8 @@
 	"main": "dist/background.js",
 	"scripts": {
 		"clean": "rm -rf dist-chrome",
-		"build:chrome": "node ./scripts/build.mjs && tailwindcss -i ./src/app.css -o ./dist-chrome/app.css --minify",
+		"build:local-deps": "node ./scripts/build-local-deps.mjs",
+		"build:chrome": "npm run build:local-deps && node ./scripts/build.mjs && tailwindcss -i ./src/app.css -o ./dist-chrome/app.css --minify",
 		"build": "npm run build:chrome",
 		"dev": "concurrently -n \"build,css,server\" -c \"blue,green,yellow\" \"node ./scripts/build.mjs --watch\" \"tailwindcss -i ./src/app.css -o ./dist-chrome/app.css --watch\" \"node ./scripts/dev-server.mjs\"",
 		"typecheck": "tsc --noEmit",
