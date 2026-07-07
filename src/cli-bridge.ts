@@ -1,5 +1,6 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type { SandboxRuntimeProvider } from "@earendil-works/pi-web-ui";
+import { branding } from "./branding.js";
 import { ExtractImageTool } from "./tools/extract-image.js";
 import { NativeInputEventsRuntimeProvider } from "./tools/NativeInputEventsRuntimeProvider.js";
 import { NavigateTool } from "./tools/navigate.js";
@@ -150,7 +151,9 @@ export function isLocalBridgeConnected(): boolean {
 
 export function requestLocalAgentReview(args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
 	if (!isLocalBridgeConnected()) {
-		throw new Error("Local Sitegeist bridge is not connected. Start it with `sitegeist bridge` and try again.");
+		throw new Error(
+			`Local ${branding.productName} bridge is not connected. Start it with \`sitegeist bridge\` and try again.`,
+		);
 	}
 
 	if (signal?.aborted) {
@@ -345,7 +348,7 @@ async function executeCommand(message: BridgeCommand, windowId: number): Promise
 		return await capturePageCase(message.args?.includeScreenshot, windowId);
 	}
 
-	throw new Error(`Unknown Sitegeist CLI command: ${message.command}`);
+	throw new Error(`Unknown ${branding.productName} CLI command: ${message.command}`);
 }
 
 export function startCliBridgeClient(getWindowId: () => number | undefined): void {
@@ -359,7 +362,7 @@ export function startCliBridgeClient(getWindowId: () => number | undefined): voi
 
 			socket.onopen = () => {
 				socket?.send(JSON.stringify({ type: "hello", role: "extension" }));
-				console.log("[CLI bridge] Connected to Sitegeist bridge");
+				console.log(`[CLI bridge] Connected to ${branding.productName} bridge`);
 			};
 
 			socket.onmessage = (event) => {
@@ -378,7 +381,7 @@ export function startCliBridgeClient(getWindowId: () => number | undefined): voi
 				const windowId = getWindowId();
 				if (message.type !== "command") return;
 				if (windowId === undefined) {
-					sendResponse(message, false, undefined, "Sitegeist window is not ready yet");
+					sendResponse(message, false, undefined, `${branding.productName} window is not ready yet`);
 					return;
 				}
 
@@ -395,7 +398,7 @@ export function startCliBridgeClient(getWindowId: () => number | undefined): voi
 
 			socket.onclose = () => {
 				socket = undefined;
-				rejectPendingLocalAgentRequests(new Error("Local Sitegeist bridge disconnected"));
+				rejectPendingLocalAgentRequests(new Error(`Local ${branding.productName} bridge disconnected`));
 				reconnectTimer = window.setTimeout(connect, RECONNECT_DELAY_MS);
 			};
 		} catch {
