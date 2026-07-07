@@ -118,7 +118,7 @@ Always aim to finish user requests fully. Use artifacts for intermediate computa
 export const NATIVE_INPUT_EVENTS_DESCRIPTION = `
 ### Native Input Events
 
-**⚠️ LAST RESORT TOOL** - Attaches Chrome debugger which shows a banner to the user.
+**LAST RESORT TOOL** - Attaches Chrome debugger which shows a banner to the user.
 
 Dispatch trusted browser events that cannot be detected or blocked by web pages.
 
@@ -126,14 +126,23 @@ Dispatch trusted browser events that cannot be detected or blocked by web pages.
 - **ONLY** when you've already tried 2-3 alternative approaches and they all failed
 - **ONLY** when regular JavaScript clicks/typing provably don't work (pages detect/block synthetic events)
 - **ONLY** after testing with normal DOM methods first (element.click(), element.focus(), element.value = text, etc.)
+- Use chart gestures only when the dashboard cannot be controlled deterministically by URL or DOM state.
 
 #### Do NOT Use For
 - First attempt at automation - always try standard DOM methods first
 - Sites where synthetic events work fine (test first before using native events)
 - General automation - this is specifically for anti-bot protection bypass
 
+#### Dashboard and Chart Rules
+- URL-first rule: on Grafana, Datadog, MongoDB Atlas, and similar monitoring dashboards, prefer rewriting URL time-range params such as \`from\` and \`to\` over pixel gestures. URL changes are deterministic and easier to verify. Use \`nativeDrag\` only when no URL state exists or the URL approach fails.
+- Verify-after-gesture rule: after a zoom gesture, take a screenshot with \`extract_image\` mode \`"screenshot"\` or re-read the chart axis labels/readout. If the visible range did not change, adjust the coordinates and retry once, then report failure.
+- Double-click resets zoom on most chart libraries. Use \`nativeClick(selector, { clickCount: 2 })\` when a chart needs a trusted double-click reset.
+
 #### Functions
-- await nativeClick(selector) - Click element using trusted browser event
+- await nativeClick(selector, options?) - Click element using trusted browser event. Existing single-argument calls click the element center with the left button. Options: \`pos\` as \`{xPct, yPct}\` within the element or absolute viewport \`{x, y}\`; \`clickCount\` such as \`2\` for double-click; \`button\` as \`"left"\`, \`"right"\`, or \`"middle"\`; \`modifiers\` as an array of \`"Alt"\`, \`"Control"\`, \`"Meta"\`, \`"Shift"\`.
+- await nativeDrag(selector, from, to, options?) - Trusted drag gesture for chart brush selection and pan gestures. \`from\` and \`to\` are \`{xPct, yPct}\` fractions of the element rect or absolute viewport \`{x, y}\`. Options: \`steps\` default \`16\`, \`stepDelayMs\` default \`15\`, and \`modifiers\`. The drag sends interpolated move events; do not use one jump from start to end.
+- await nativeHover(selector, pos?) - Move the trusted mouse pointer to a position. Use this to hover chart points so the tooltip appears; then read the tooltip from the DOM or take a screenshot.
+- await nativeWheel(selector, pos?, deltaY, options?) - Send a trusted wheel event at a position, with \`deltaX: 0\` and the given \`deltaY\`. Use \`nativeWheel(selector, deltaY, options?)\` to wheel at the element center. \`Control\` plus wheel zooms many charts.
 - await nativeType(selector, text) - Type text using trusted keyboard events
 - await nativePress(key) - Press key (keyDown + keyUp), accepts standard JavaScript key names (e.g., 'Enter', 'a')
 - await nativeKeyDown(key) - Press key down (use with nativeKeyUp for combinations)
@@ -145,6 +154,22 @@ Simple click and type:
 await nativeClick('button.start');
 await nativeType('input[name="username"]', 'john@example.com');
 await nativePress('Enter');
+\`\`\`
+
+Chart brush zoom, then verify:
+\`\`\`javascript
+await nativeDrag('canvas', { xPct: 0.35, yPct: 0.5 }, { xPct: 0.65, yPct: 0.5 });
+// Then take a screenshot or read axis labels/readout to confirm the visible range changed.
+\`\`\`
+
+Hover a point to read its tooltip:
+\`\`\`javascript
+await nativeHover('canvas', { xPct: 0.6, yPct: 0.35 });
+\`\`\`
+
+Wheel zoom at the center:
+\`\`\`javascript
+await nativeWheel('canvas', -500, { modifiers: ['Control'] });
 \`\`\`
 
 Key combinations (Ctrl+A to select all):
@@ -161,6 +186,33 @@ await nativeKeyDown('Shift');
 await nativeKeyDown('End');
 await nativeKeyUp('End');
 await nativeKeyUp('Shift');
+\`\`\`
+`;
+
+// ============================================================================
+// Chart Helpers Runtime Provider
+// ============================================================================
+
+export const CHART_HELPERS_RUNTIME_PROVIDER_DESCRIPTION = `
+### Chart Helpers
+
+Read chart axis tick positions from the active page DOM so chart gestures can use deterministic coordinates.
+
+#### Functions
+- chartTicks(selector) - Returns \`{ xTicks: [{ label, xPct }], yTicks: [{ label, yPct }] }\` for SVG chart tick labels inside the selected element. \`xPct\` and \`yPct\` are fractions of the selected element's bounding box.
+
+#### When to Use
+- Use \`chartTicks\` before \`nativeDrag\` when a user asks to zoom a chart to a labeled time range such as "14:05-14:20". Map the desired tick labels to exact \`xPct\` values instead of estimating from a screenshot.
+- For canvas charts with no DOM tick labels, \`chartTicks\` returns empty arrays. Fall back to a screenshot plus fractional coordinate estimate.
+
+#### Example
+\`\`\`javascript
+const ticks = await browserjs((selector) => chartTicks(selector), '.panel-container');
+const start = ticks.xTicks.find((tick) => tick.label.includes('14:05'))?.xPct;
+const end = ticks.xTicks.find((tick) => tick.label.includes('14:20'))?.xPct;
+if (start !== undefined && end !== undefined) {
+  await nativeDrag('.panel-container', { xPct: start, yPct: 0.5 }, { xPct: end, yPct: 0.5 });
+}
 \`\`\`
 `;
 
@@ -187,7 +239,8 @@ The function is **serialized** and executed in the page context. This means:
 **What works:**
 - ✅ MUST pass data as parameters (JSON-serializable only)
 - ✅ CAN use artifact/attachment functions (auto-injected in page context)
-- ✅ CAN use native input functions (nativeClick, nativeType, nativePress, etc.)
+- ✅ CAN use native input functions (nativeClick, nativeDrag, nativeHover, nativeWheel, nativeType, nativePress, etc.)
+- ✅ CAN use chart helper functions (chartTicks)
 - ✅ CAN use skills for current domain (auto-injected)
 
 **What doesn't work:**
