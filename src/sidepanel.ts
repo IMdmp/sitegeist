@@ -23,6 +23,7 @@ import {
 } from "@earendil-works/pi-web-ui";
 import { html, render } from "lit";
 import { History, Plus, Settings } from "lucide";
+import { brandUrl } from "./branding.js";
 import { startCliBridgeClient } from "./cli-bridge.js";
 import { AboutTab } from "./dialogs/AboutTab.js";
 import { ApiKeyOrOAuthDialog } from "./dialogs/ApiKeyOrOAuthDialog.js";
@@ -65,6 +66,7 @@ import { NativeInputEventsRuntimeProvider } from "./tools/NativeInputEventsRunti
 import { isToolNavigating, NavigateTool } from "./tools/navigate.js";
 import { createReplTool } from "./tools/repl/repl.js";
 import { BrowserJsRuntimeProvider, NavigateRuntimeProvider } from "./tools/repl/runtime-providers.js";
+import { initializeDefaultSkills } from "./tools/skill.js";
 import * as port from "./utils/port.js";
 import "./utils/i18n-extension.js";
 import "./utils/live-reload.js";
@@ -890,7 +892,7 @@ async function checkForUpdates() {
 		const currentVersion = chrome.runtime.getManifest().version;
 
 		// Fetch latest version
-		const response = await fetch("https://sitegeist.ai/uploads/version.json", {
+		const response = await fetch(brandUrl("/uploads/version.json"), {
 			cache: "no-cache",
 		});
 		const data = await response.json();
@@ -950,8 +952,6 @@ async function initApp() {
 	// TODO: re-enable update check when publishing to users
 	// await checkForUpdates();
 
-	// Initialize default skills
-	const { initializeDefaultSkills } = await import("./tools/skill.js");
 	await initializeDefaultSkills();
 
 	// Proxy disabled — CORS is handled locally via declarativeNetRequest rules

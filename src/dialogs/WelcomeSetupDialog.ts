@@ -2,6 +2,7 @@ import { Button } from "@mariozechner/mini-lit/dist/Button.js";
 import { DialogContent, DialogHeader } from "@mariozechner/mini-lit/dist/Dialog.js";
 import { DialogBase } from "@mariozechner/mini-lit/dist/DialogBase.js";
 import { html } from "lit";
+import { branding } from "../branding.js";
 
 /**
  * Shown on first launch when no API keys are configured.
@@ -32,7 +33,7 @@ export class WelcomeSetupDialog extends DialogBase {
 				className: "flex flex-col gap-4",
 				children: html`
 					${DialogHeader({
-						title: "Welcome to Sitegeist",
+						title: `Welcome to ${branding.productName}`,
 					})}
 					<p class="text-sm text-foreground">
 						To get started, you need to connect at least one AI provider.

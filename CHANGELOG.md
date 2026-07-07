@@ -7,6 +7,7 @@
 - Cloudflare Workers AI as a configurable AI provider with account ID and API token settings
 - Local `sitegeist` CLI bridge for tab listing, navigation, page eval, trusted browser input, screenshots, raw evidence capture, and Markdown case files from the active browser tab
 - `local_agent_review` chat tool for sending current-page evidence to an operator-configured local review command
+- White-label brand configuration for product name, manifest identity, welcome chips, mascot assets, links, CLI command name, and proof-brand builds
 - Version history and one-click restore for saved skills
 - Skill installation from a JSON URL with validation and review before saving
 - Full-page and element-region screenshot modes for the image extraction tool

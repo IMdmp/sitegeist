@@ -12,7 +12,7 @@ import { SitegeistSessionsStore } from "./stores/sessions-store.js";
 import { SkillsStore } from "./stores/skills-store.js";
 
 /**
- * Extended AppStorage for Sitegeist with skills, memories, and prompts stores.
+ * Extended AppStorage with skills, memories, and prompts stores.
  */
 export class SitegeistAppStorage extends BaseAppStorage {
 	readonly skills: SkillsStore;
@@ -57,14 +57,14 @@ export class SitegeistAppStorage extends BaseAppStorage {
 		// 5. Pass base stores to parent
 		super(settings, providerKeys, sessions, customProviders, backend);
 
-		// 6. Store references to sitegeist-specific stores
+		// 6. Store references to extension-specific stores
 		this.skills = skills;
 		this.costs = costs;
 	}
 }
 
 /**
- * Helper to get typed Sitegeist storage.
+ * Helper to get typed extension storage.
  */
 export function getSitegeistStorage(): SitegeistAppStorage {
 	return getAppStorage() as SitegeistAppStorage;

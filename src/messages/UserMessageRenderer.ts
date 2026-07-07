@@ -4,7 +4,7 @@ import { html, LitElement } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
 /**
- * Custom user message component for Sitegeist with fancy pill styling.
+ * Custom user message component with fancy pill styling.
  * Duplicates the web-ui UserMessage but with our custom styling.
  */
 @customElement("sitegeist-user-message")

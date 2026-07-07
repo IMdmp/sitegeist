@@ -1,0 +1,39 @@
+{
+	"productName": "Acme Copilot",
+	"manifestDescription": "Acme's branded assistant for focused web research and automation",
+	"taglinePrefix": "Your operations copilot to",
+	"taglineWords": ["inspect", "summarize", "compare", "automate"],
+	"welcomeChips": [
+		{
+			"label": "Brief a Page",
+			"prompt": "Summarize the current page for an operations teammate. Start with the key facts, then list follow-up questions worth asking."
+		},
+		{
+			"label": "Compare Vendors",
+			"prompt": "Ask which vendors I want to compare, then research their positioning, pricing signals, product differences, and risks. Keep a running markdown artifact with sources."
+		},
+		{
+			"label": "Extract to Table",
+			"prompt": "Help me turn the current page into a clean table. Ask what fields I need, extract the data, and produce a CSV-ready artifact."
+		}
+	],
+	"mascot": {
+		"type": "image",
+		"src": "acme-mascot.png",
+		"alt": "Acme Copilot geometric mascot"
+	},
+	"links": {
+		"homepage": "https://example.com/acme",
+		"releases": "https://example.com/acme/releases"
+	},
+	"iconsDir": "icons",
+	"cliCommand": "acme",
+	"site": {
+		"downloadUrl": "https://example.com/acme/releases",
+		"downloadLabel": "Download",
+		"downloadLatestLabel": "Download Latest Version",
+		"sourceUrl": "https://github.com/badlogic/sitegeist",
+		"sourceLabel": "View source",
+		"installFolderName": "acme-copilot"
+	}
+}

@@ -1,5 +1,26 @@
+interface SiteBranding {
+	taglineWords: string[];
+	ctaWords: string[];
+}
+
+declare const __SITE_BRANDING_JSON__: string;
+
+function getSiteBranding(): SiteBranding {
+	try {
+		return JSON.parse(__SITE_BRANDING_JSON__) as SiteBranding;
+	} catch (error) {
+		console.warn("[Site] Failed to parse branding data:", error);
+		return {
+			taglineWords: ["automate", "scrape", "research", "transform", "create", "analyze"],
+			ctaWords: ["automate", "scrape", "research", "transform", "create", "analyze"],
+		};
+	}
+}
+
+const siteBranding = getSiteBranding();
+
 // Rotating tagline words with fade
-const taglineWords = ["automate", "scrape", "research", "transform", "create", "analyze"];
+const taglineWords = siteBranding.taglineWords;
 let currentWordIndex = 0;
 const wordElement = document.getElementById("tagline-word");
 
@@ -15,7 +36,7 @@ if (wordElement) {
 }
 
 // Rotating CTA words with fade
-const ctaWords = ["automate", "scrape", "research", "transform", "create", "analyze"];
+const ctaWords = siteBranding.ctaWords;
 let currentCtaWordIndex = 0;
 const ctaWordElement = document.getElementById("cta-word");
 
