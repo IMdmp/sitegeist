@@ -64,6 +64,7 @@ import { AskUserWhichElementTool, skillTool } from "./tools/index.js";
 import { LocalAgentReviewTool, registerLocalAgentReviewRenderer } from "./tools/local-agent.js";
 import { NativeInputEventsRuntimeProvider } from "./tools/NativeInputEventsRuntimeProvider.js";
 import { isToolNavigating, NavigateTool } from "./tools/navigate.js";
+import { ChartHelpersRuntimeProvider } from "./tools/repl/ChartHelpersRuntimeProvider.js";
 import { createReplTool } from "./tools/repl/repl.js";
 import { BrowserJsRuntimeProvider, NavigateRuntimeProvider } from "./tools/repl/runtime-providers.js";
 import { initializeDefaultSkills } from "./tools/skill.js";
@@ -534,6 +535,7 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 				const pageProviders = [
 					...runtimeProvidersFactory(), // attachments + artifacts from ChatPanel
 					new NativeInputEventsRuntimeProvider(), // trusted browser events
+					new ChartHelpersRuntimeProvider(), // chart axis tick helpers
 				];
 
 				return [

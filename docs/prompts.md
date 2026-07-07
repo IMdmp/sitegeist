@@ -101,7 +101,8 @@ Sitegeist-specific prompts:
 **Runtime Provider Descriptions**:
 - `BROWSERJS_RUNTIME_DESCRIPTION` - `browserjs()` for page context execution
 - `NAVIGATE_RUNTIME_DESCRIPTION` - `navigate()` helper function (available in REPL code, not in functions passed to browserjs())
-- `NATIVE_INPUT_EVENTS_DESCRIPTION` - Trusted events: `nativeClick()`, `nativeType()`, `nativePress()`, `nativeKeyDown()`, `nativeKeyUp()`
+- `NATIVE_INPUT_EVENTS_DESCRIPTION` - Trusted events: `nativeClick()`, `nativeDrag()`, `nativeHover()`, `nativeWheel()`, `nativeType()`, `nativePress()`, `nativeKeyDown()`, `nativeKeyUp()`
+- `CHART_HELPERS_RUNTIME_PROVIDER_DESCRIPTION` - SVG chart axis helpers: `chartTicks()`
 
 ## Implementation Details
 

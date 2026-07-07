@@ -10,6 +10,8 @@
 - White-label brand configuration for product name, manifest identity, welcome chips, mascot assets, links, CLI command name, and proof-brand builds
 - Version history and one-click restore for saved skills
 - Skill installation from a JSON URL with validation and review before saving
+- Full-page and element-region screenshot modes for the image extraction tool
+- Trusted native input gestures for chart drag selection, hover tooltips, wheel zoom, positioned clicks, and SVG chart tick helpers
 
 ### Changed
 
