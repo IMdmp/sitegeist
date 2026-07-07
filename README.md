@@ -6,6 +6,8 @@ An AI assistant that lives in your browser sidebar. Built for collaboration, not
 
 Sitegeist can automate repetitive web tasks, extract data from any website, navigate across pages, fill out forms, compare products, compile research, and transform what it finds into documents, spreadsheets, or whatever you need. It works on any website through a Chrome/Edge side panel, using the AI provider of your choice.
 
+Files it creates are saved across sessions in a Saved Artifacts view, and it keeps durable memory of your preferences and recurring context that you can browse and edit in the Memory view.
+
 Bring your own API key or log in with an existing subscription (Anthropic Claude, OpenAI/ChatGPT, GitHub Copilot, Google Gemini). Cloudflare Workers AI is also supported with your Cloudflare account ID and API token. Your data stays on your machine. Nothing is collected or tracked.
 
 ## Download & Install

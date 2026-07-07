@@ -72,9 +72,9 @@ src/
   background.ts         # Service worker (sidepanel toggle, session locks)
   oauth/                # Browser OAuth flows (Anthropic, OpenAI, GitHub, Gemini)
   dialogs/              # Settings tabs, API key dialogs, welcome setup
-  tools/                # Agent tools (navigate, REPL, extract-image, skills, debugger)
+  tools/                # Agent tools (navigate, REPL, extract-image, skills, memory, debugger)
   messages/             # Custom message types (navigation, welcome)
-  storage/              # IndexedDB storage (sessions, skills, costs)
+  storage/              # IndexedDB storage (sessions, skills, costs, artifacts, memories)
   prompts/              # System prompt and token counting
   components/           # UI components (Toast, TabPill, OrbAnimation)
 site/
