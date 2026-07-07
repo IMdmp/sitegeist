@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Sitegeist SVG Chart Ticks Fixture</title>
+		<style>
+			:root {
+				color-scheme: light;
+				font-family:
+					Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+				background: #f6f7fb;
+				color: #172033;
+			}
+
+			body {
+				margin: 0;
+				min-height: 100vh;
+				display: grid;
+				place-items: center;
+			}
+
+			main {
+				width: min(960px, calc(100vw - 32px));
+				display: grid;
+				gap: 16px;
+			}
+
+			header {
+				display: flex;
+				justify-content: space-between;
+				gap: 16px;
+				align-items: end;
+			}
+
+			h1 {
+				margin: 0;
+				font-size: 24px;
+				line-height: 1.2;
+			}
+
+			p {
+				margin: 6px 0 0;
+				color: #5d667a;
+				font-size: 14px;
+			}
+
+			button {
+				border: 1px solid #bbc4d6;
+				border-radius: 6px;
+				background: #ffffff;
+				color: #172033;
+				font: inherit;
+				font-size: 14px;
+				padding: 8px 12px;
+				cursor: pointer;
+			}
+
+			button:hover {
+				border-color: #69758d;
+			}
+
+			#readout {
+				border: 1px solid #cbd3e2;
+				border-radius: 6px;
+				background: #ffffff;
+				padding: 10px 12px;
+				font-size: 15px;
+				font-variant-numeric: tabular-nums;
+			}
+
+			#chart-shell {
+				border: 1px solid #cbd3e2;
+				border-radius: 8px;
+				background: #ffffff;
+				padding: 18px;
+			}
+
+			svg {
+				display: block;
+				width: 100%;
+				height: auto;
+				touch-action: none;
+				user-select: none;
+			}
+
+			.tick-label {
+				fill: #5d667a;
+				font-size: 13px;
+			}
+
+			.x-tick {
+				text-anchor: middle;
+			}
+
+			.y-tick {
+				text-anchor: end;
+			}
+
+			.axis-line {
+				stroke: #cbd3e2;
+				stroke-width: 1;
+			}
+
+			.series-line {
+				fill: none;
+				stroke: #2663eb;
+				stroke-width: 2;
+			}
+
+			#brush {
+				fill: rgba(38, 99, 235, 0.14);
+				stroke: #2663eb;
+				stroke-width: 1;
+				visibility: hidden;
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<header>
+				<div>
+					<h1>Sitegeist SVG Tick Fixture</h1>
+					<p>SVG chart with real <code>&lt;text&gt;</code> axis ticks. Brush horizontally to zoom the x-axis.</p>
+				</div>
+				<button id="reset-zoom" type="button">Reset zoom</button>
+			</header>
+			<div id="readout" aria-live="polite">Visible range: loading</div>
+			<section id="chart-shell" aria-label="Latency time series chart">
+				<svg id="latency-chart" viewBox="0 0 720 360" role="img" aria-label="API latency p95 over time">
+					<line id="x-axis" class="axis-line" x1="56" y1="312" x2="700" y2="312"></line>
+					<line id="y-axis" class="axis-line" x1="56" y1="24" x2="56" y2="312"></line>
+					<g id="y-ticks"></g>
+					<g id="x-ticks"></g>
+					<polyline id="series" class="series-line" points=""></polyline>
+					<rect id="brush" x="0" y="24" width="0" height="288"></rect>
+				</svg>
+			</section>
+		</main>
+
+		<script>
+			const startHour = 14;
+			const durationMinutes = 30;
+			// p95 latency (ms) sampled once per minute across the 30-minute window.
+			const samples = [
+				18, 19, 18, 20, 21, 19, 22, 21, 23, 24, 26, 31, 44, 72, 118, 172, 132, 82, 47, 34, 29, 26, 24, 23, 22, 21,
+				20, 20, 19, 18, 18,
+			].map((y, minute) => ({ minute, y }));
+
+			const plot = { left: 56, right: 700, top: 24, bottom: 312 };
+			const yDomain = { min: 0, max: 190 };
+			const view = { min: 0, max: durationMinutes };
+
+			const svg = document.getElementById("latency-chart");
+			const seriesEl = document.getElementById("series");
+			const xTicksEl = document.getElementById("x-ticks");
+			const yTicksEl = document.getElementById("y-ticks");
+			const brushEl = document.getElementById("brush");
+			const readoutEl = document.getElementById("readout");
+			const svgNs = "http://www.w3.org/2000/svg";
+
+			function minuteLabel(value) {
+				const roundedMinute = Math.round(value);
+				const hour = startHour + Math.floor(roundedMinute / 60);
+				const minute = ((roundedMinute % 60) + 60) % 60;
+				return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+			}
+
+			function xToPixel(minute) {
+				const span = view.max - view.min || 1;
+				return plot.left + ((minute - view.min) / span) * (plot.right - plot.left);
+			}
+
+			function yToPixel(value) {
+				const span = yDomain.max - yDomain.min || 1;
+				return plot.bottom - ((value - yDomain.min) / span) * (plot.bottom - plot.top);
+			}
+
+			function pixelToMinute(pixelX) {
+				const clampedX = Math.min(plot.right, Math.max(plot.left, pixelX));
+				const fraction = (clampedX - plot.left) / (plot.right - plot.left);
+				return view.min + fraction * (view.max - view.min);
+			}
+
+			function renderSeries() {
+				const points = samples
+					.filter((point) => point.minute >= view.min && point.minute <= view.max)
+					.map((point) => `${xToPixel(point.minute).toFixed(1)},${yToPixel(point.y).toFixed(1)}`)
+					.join(" ");
+				seriesEl.setAttribute("points", points);
+			}
+
+			function renderXTicks() {
+				xTicksEl.replaceChildren();
+				const tickCount = 6;
+				for (let index = 0; index <= tickCount; index++) {
+					const minute = view.min + ((view.max - view.min) * index) / tickCount;
+					const text = document.createElementNS(svgNs, "text");
+					text.setAttribute("class", "tick-label x-tick");
+					text.setAttribute("x", xToPixel(minute).toFixed(1));
+					text.setAttribute("y", "332");
+					text.textContent = minuteLabel(minute);
+					xTicksEl.appendChild(text);
+				}
+			}
+
+			function renderYTicks() {
+				yTicksEl.replaceChildren();
+				for (const value of [0, 50, 100, 150, 190]) {
+					const text = document.createElementNS(svgNs, "text");
+					text.setAttribute("class", "tick-label y-tick");
+					text.setAttribute("x", "48");
+					text.setAttribute("y", (yToPixel(value) + 4).toFixed(1));
+					text.textContent = String(value);
+					yTicksEl.appendChild(text);
+				}
+			}
+
+			function updateReadout() {
+				readoutEl.textContent =
+					`Visible range: ${minuteLabel(view.min)} to ${minuteLabel(view.max)} (${(view.max - view.min).toFixed(1)} minutes)`;
+			}
+
+			function render() {
+				renderYTicks();
+				renderXTicks();
+				renderSeries();
+				updateReadout();
+			}
+
+			function toSvgX(clientX) {
+				const rect = svg.getBoundingClientRect();
+				return ((clientX - rect.left) / rect.width) * 720;
+			}
+
+			let dragStartX = null;
+
+			function beginDrag(clientX) {
+				dragStartX = toSvgX(clientX);
+				brushEl.setAttribute("x", dragStartX.toFixed(1));
+				brushEl.setAttribute("width", "0");
+				brushEl.style.visibility = "visible";
+			}
+
+			function moveDrag(clientX) {
+				if (dragStartX === null) {
+					return;
+				}
+				const currentX = toSvgX(clientX);
+				const left = Math.min(dragStartX, currentX);
+				const width = Math.abs(currentX - dragStartX);
+				brushEl.setAttribute("x", left.toFixed(1));
+				brushEl.setAttribute("width", width.toFixed(1));
+			}
+
+			function endDrag(clientX) {
+				if (dragStartX === null) {
+					return;
+				}
+				const currentX = toSvgX(clientX);
+				const startMinute = pixelToMinute(Math.min(dragStartX, currentX));
+				const endMinute = pixelToMinute(Math.max(dragStartX, currentX));
+				dragStartX = null;
+				brushEl.style.visibility = "hidden";
+
+				// Ignore stray clicks: require at least a 1-minute selection.
+				if (endMinute - startMinute >= 1) {
+					view.min = startMinute;
+					view.max = endMinute;
+					render();
+				}
+			}
+
+			// CDP-dispatched native input arrives as mouse events, so listen to those.
+			svg.addEventListener("mousedown", (event) => beginDrag(event.clientX));
+			window.addEventListener("mousemove", (event) => moveDrag(event.clientX));
+			window.addEventListener("mouseup", (event) => endDrag(event.clientX));
+
+			document.getElementById("reset-zoom").addEventListener("click", () => {
+				view.min = 0;
+				view.max = durationMinutes;
+				render();
+			});
+
+			render();
+		</script>
+	</body>
+</html>

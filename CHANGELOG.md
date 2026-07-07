@@ -11,6 +11,7 @@
 - Version history and one-click restore for saved skills
 - Skill installation from a JSON URL with validation and review before saving
 - Full-page and element-region screenshot modes for the image extraction tool
+- Trusted native input gestures for chart drag selection, hover tooltips, wheel zoom, positioned clicks, and SVG chart tick helpers
 
 ### Changed
 

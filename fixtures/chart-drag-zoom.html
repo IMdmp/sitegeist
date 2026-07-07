@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Sitegeist Chart Drag Zoom Fixture</title>
+		<style>
+			:root {
+				color-scheme: light;
+				font-family:
+					Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+				background: #f6f7fb;
+				color: #172033;
+			}
+
+			body {
+				margin: 0;
+				min-height: 100vh;
+				display: grid;
+				place-items: center;
+			}
+
+			main {
+				width: min(960px, calc(100vw - 32px));
+				display: grid;
+				gap: 16px;
+			}
+
+			header {
+				display: flex;
+				justify-content: space-between;
+				gap: 16px;
+				align-items: end;
+			}
+
+			h1 {
+				margin: 0;
+				font-size: 24px;
+				line-height: 1.2;
+			}
+
+			p {
+				margin: 6px 0 0;
+				color: #5d667a;
+				font-size: 14px;
+			}
+
+			button {
+				border: 1px solid #bbc4d6;
+				border-radius: 6px;
+				background: #ffffff;
+				color: #172033;
+				font: inherit;
+				font-size: 14px;
+				padding: 8px 12px;
+				cursor: pointer;
+			}
+
+			button:hover {
+				border-color: #69758d;
+			}
+
+			#readout {
+				border: 1px solid #cbd3e2;
+				border-radius: 6px;
+				background: #ffffff;
+				padding: 10px 12px;
+				font-size: 15px;
+				font-variant-numeric: tabular-nums;
+			}
+
+			#chart-shell {
+				height: 480px;
+				border: 1px solid #cbd3e2;
+				border-radius: 8px;
+				background: #ffffff;
+				padding: 18px;
+			}
+
+			canvas {
+				display: block;
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<header>
+				<div>
+					<h1>Sitegeist Drag-Zoom Fixture</h1>
+					<p>Brush horizontally across the spike near 14:15 to zoom the x-axis.</p>
+				</div>
+				<button id="reset-zoom" type="button">Reset zoom</button>
+			</header>
+			<div id="readout" aria-live="polite">Visible range: loading</div>
+			<section id="chart-shell" aria-label="Latency time series chart">
+				<canvas id="latency-chart"></canvas>
+			</section>
+		</main>
+
+		<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
+		<script>
+			const startHour = 14;
+			const durationMinutes = 30;
+			const data = [
+				18, 19, 18, 20, 21, 19, 22, 21, 23, 24, 26, 31, 44, 72, 118, 172, 132, 82, 47, 34, 29, 26, 24, 23, 22, 21, 20,
+				20, 19, 18, 18,
+			].map((value, minute) => ({ x: minute, y: value }));
+
+			function minuteLabel(value) {
+				const roundedMinute = Math.round(value);
+				const hour = startHour + Math.floor(roundedMinute / 60);
+				const minute = ((roundedMinute % 60) + 60) % 60;
+				return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+			}
+
+			function updateReadout(chart) {
+				const scale = chart.scales.x;
+				const min = Math.max(0, scale.min);
+				const max = Math.min(durationMinutes, scale.max);
+				document.getElementById("readout").textContent =
+					`Visible range: ${minuteLabel(min)} to ${minuteLabel(max)} (${(max - min).toFixed(1)} minutes)`;
+			}
+
+			const chart = new Chart(document.getElementById("latency-chart"), {
+				type: "line",
+				data: {
+					datasets: [
+						{
+							label: "API latency p95",
+							data,
+							borderColor: "#2663eb",
+							backgroundColor: "rgba(38, 99, 235, 0.12)",
+							borderWidth: 2,
+							pointBackgroundColor: data.map((point) => (point.y > 100 ? "#d72f44" : "#2663eb")),
+							pointBorderColor: "#ffffff",
+							pointBorderWidth: 1.5,
+							pointRadius: data.map((point) => (point.y > 100 ? 5 : 3)),
+							pointHoverRadius: 6,
+							tension: 0.28,
+							fill: true,
+						},
+					],
+				},
+				options: {
+					responsive: true,
+					maintainAspectRatio: false,
+					animation: false,
+					parsing: false,
+					interaction: {
+						mode: "nearest",
+						intersect: false,
+					},
+					scales: {
+						x: {
+							type: "linear",
+							min: 0,
+							max: durationMinutes,
+							title: {
+								display: true,
+								text: "Time",
+							},
+							ticks: {
+								stepSize: 5,
+								callback: (value) => minuteLabel(Number(value)),
+							},
+						},
+						y: {
+							min: 0,
+							suggestedMax: 190,
+							title: {
+								display: true,
+								text: "Latency (ms)",
+							},
+						},
+					},
+					plugins: {
+						legend: {
+							display: true,
+						},
+						tooltip: {
+							callbacks: {
+								title: (items) => minuteLabel(items[0].parsed.x),
+								label: (item) => `p95 latency: ${item.parsed.y} ms`,
+							},
+						},
+						zoom: {
+							limits: {
+								x: { min: 0, max: durationMinutes, minRange: 2 },
+							},
+							pan: {
+								enabled: true,
+								mode: "x",
+							},
+							zoom: {
+								mode: "x",
+								wheel: {
+									enabled: true,
+								},
+								drag: {
+									enabled: true,
+									backgroundColor: "rgba(215, 47, 68, 0.16)",
+									borderColor: "#d72f44",
+									borderWidth: 1,
+								},
+								onZoomComplete: ({ chart }) => updateReadout(chart),
+							},
+						},
+					},
+				},
+			});
+
+			document.getElementById("reset-zoom").addEventListener("click", () => {
+				chart.resetZoom();
+				updateReadout(chart);
+			});
+
+			updateReadout(chart);
+		</script>
+	</body>
+</html>
