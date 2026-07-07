@@ -78,10 +78,25 @@ export class ChartHelpersRuntimeProvider implements SandboxRuntimeProvider {
 
 						const xPct = clampPct(rawXPct);
 						const yPct = clampPct(rawYPct);
-						if (yPct >= 0.8) {
+
+						// Classify each tick label to exactly one axis. x-axis labels
+						// hug the bottom edge (large yPct); y-axis labels hug the left
+						// edge (small xPct). A corner label (e.g. the origin "0") sits
+						// in both bands, so break the tie by whichever edge it is nearer
+						// to and never push it to both arrays.
+						const nearBottom = yPct >= 0.75;
+						const nearLeft = xPct <= 0.25;
+						if (nearBottom && nearLeft) {
+							const distFromBottom = 1 - yPct;
+							const distFromLeft = xPct;
+							if (distFromLeft <= distFromBottom) {
+								yTicks.push({ label, yPct });
+							} else {
+								xTicks.push({ label, xPct });
+							}
+						} else if (nearBottom) {
 							xTicks.push({ label, xPct });
-						}
-						if (xPct <= 0.2) {
+						} else if (nearLeft) {
 							yTicks.push({ label, yPct });
 						}
 					}
