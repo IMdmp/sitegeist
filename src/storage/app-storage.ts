@@ -42,7 +42,11 @@ export class SitegeistAppStorage extends BaseAppStorage {
 		// 3. Create backend with all configs
 		const backend = new IndexedDBStorageBackend({
 			dbName: "sitegeist-storage",
-			version: 4, // Increment version to add skill history store
+			// v6: recover profiles where an unmerged v5 build (artifacts + memories
+			// stores) already upgraded the on-disk database; IndexedDB cannot open
+			// at a lower version than the one on disk. The upgrade handler only
+			// creates missing stores, so jumping versions is safe.
+			version: 6,
 			stores: configs,
 		});
 

@@ -4,6 +4,7 @@ import {
 	NAVIGATE_RUNTIME_PROVIDER_DESCRIPTION,
 } from "../../prompts/prompts.js";
 import { getSitegeistStorage } from "../../storage/app-storage.js";
+import { queryActiveTab } from "../../utils/active-tab.js";
 import type { NavigateParams, NavigateTool } from "../navigate.js";
 import { buildWrapperCode, checkUserScriptsAvailability } from "./userscripts-helpers.js";
 
@@ -18,6 +19,8 @@ import { buildWrapperCode, checkUserScriptsAvailability } from "./userscripts-he
  *   const count = await browserjs((sel) => document.querySelectorAll(sel).length, '.product');
  */
 export class BrowserJsRuntimeProvider implements SandboxRuntimeProvider {
+	/** Pin page-context execution to the active tab of this window. */
+	targetWindowId?: number;
 	private activeSandboxIds: Set<string> = new Set();
 	private activeExecutions = new Map<
 		string,
@@ -115,10 +118,7 @@ export class BrowserJsRuntimeProvider implements SandboxRuntimeProvider {
 		}
 
 		// Get current tab
-		const [tab] = await chrome.tabs.query({
-			active: true,
-			currentWindow: true,
-		});
+		const tab = await queryActiveTab(this.targetWindowId);
 
 		if (!tab || !tab.id) {
 			respond({

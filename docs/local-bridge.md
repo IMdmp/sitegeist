@@ -2,10 +2,11 @@
 
 ## Overview
 
-The local bridge lets Sitegeist exchange data with tools running on the same machine. It has two directions:
+The local bridge lets Sitegeist exchange data with tools running on the same machine. It has three directions:
 
 - Terminal commands can ask the extension to inspect or operate on the active browser tab.
 - Sitegeist chat can send current-page evidence to an operator-configured local review command.
+- Local clients can run a full headless Sitegeist agent turn in the browser (`agent-turn`), streamed back as normalized frames. This is how Sitegeist joins a Codor channel as the `@chrome` member.
 
 The bridge keeps the browser extension independent from any specific coding harness. The local command can wrap Pi, Codex, Claude Code, a project-specific checker, or any other process that reads JSON from stdin and writes a review to stdout.
 
@@ -22,6 +23,11 @@ Sitegeist chat
   -> local WebSocket bridge
   -> review command
   -> stdout response back to chat
+
+Local client (e.g. the Codor sitegeist adapter)
+  -> agent-turn-request over the bridge
+  -> headless pi agent turn in the extension
+  -> frame stream (agent-turn-event ... agent-turn-complete) back to the client
 ```
 
 ## Setup
@@ -41,7 +47,14 @@ Start the bridge:
 sitegeist bridge
 ```
 
-The default listener is `ws://127.0.0.1:17373`. Open the Sitegeist side panel so the extension connects.
+Or use the repo-root helper, which builds the CLI when stale and can smoke-test a running bridge:
+
+```bash
+./bridge.sh            # start the bridge
+./bridge.sh --check    # verify bridge + side panel are connected end to end
+```
+
+The default listener is `ws://127.0.0.1:17373`. Open the Sitegeist side panel so the extension connects; the panel retries the connection every two seconds, so start order does not matter.
 
 ## Browser Commands From Terminal
 
@@ -83,6 +96,56 @@ The tool accepts:
 - `problem`: concrete page issue or question to investigate.
 - `workspaceHint`: optional repo, domain, or project hint for the local command.
 - `includeScreenshot`: optional boolean for visual issues.
+
+## Inbound Agent Turns
+
+A local client can ask the extension to run a complete headless agent turn — the same pi
+agent the side panel runs, minus the UI — and stream the result back. One JSON object per
+WebSocket message, correlated by `requestId`:
+
+```text
+Client -> bridge -> extension:
+  { type: "agent-turn-request", requestId, task,
+    sessionId?, model?, thinkingLevel?, resume? }
+  { type: "agent-turn-abort", requestId }
+
+Extension -> bridge -> client:
+  { type: "agent-turn-event", requestId, seq, event: SitegeistTurnFrame }   (N frames)
+  { type: "agent-turn-complete", requestId,
+    status: "completed" | "failed" | "interrupted",
+    finalText?, error?, usage?, sessionId }                                 (exactly one)
+
+Bridge -> client (pre-turn rejection):
+  { type: "agent-turn-error", requestId, error }
+```
+
+Frame vocabulary (`src/inbound-frames.ts`): `started {sessionId}`, `text {delta}`,
+`thinking {delta}`, `usage {input, output, cacheRead, cacheWrite, totalCostUsd}`,
+`tool_call {callId, tool, title, input}`, and
+`tool_result {callId, status, outputText?, image?, raw?}`. Screenshots ride on
+`tool_result.image`; console output rides in `tool_result.raw`.
+
+Behavior:
+
+- The turn uses the operator's own provider keys already stored in the browser. No secret
+  crosses the bridge.
+- `model` accepts `provider:model-id` or a bare model id; unknown models fail the turn.
+  `thinkingLevel` accepts pi's levels; the turn defaults to the session's or `medium`.
+- `resume: true` with a `sessionId` continues a stored session; the completion frame always
+  carries the session id so every turn is resumable.
+- The headless tool set excludes `ask_user_which_element` (blocks on a human), the debugger
+  tool (single `chrome.debugger` attach), and `local_agent_review` (would call back out
+  through the same bridge).
+- One inbound turn at a time: while the visible panel is streaming, or another inbound turn
+  is active, the request is rejected with `status: "failed", error: "browser busy: ..."`.
+- **Pinned work window** (default on): the turn runs against the active tab of a dedicated
+  browser window, so the user can keep browsing in their own tabs while the agent works.
+  Toggle "Pinned Window" on the extension debug page. When off, the turn targets the active
+  tab of the side panel's window.
+
+The reference client is the Codor adapter (`codor/packages/adapters/sitegeist`), which
+registers Sitegeist as the `@chrome` channel member. Its `NOTES.md` documents the full
+frame-to-wire-event mapping.
 
 ## Review Command Contract
 
@@ -162,6 +225,8 @@ For a project-specific adapter, map domains or `workspaceHint` values to local r
 - Web pages cannot choose the command.
 - Browser-origin terminal commands are rejected unless they come from the connected Sitegeist extension.
 - `local-agent-request` messages are accepted only from the registered extension socket.
+- `agent-turn-request` is rejected from browser origins; `agent-turn-event` and `agent-turn-complete` are accepted only from the registered extension socket, so a web page can neither start a turn nor forge its results.
+- The `task` payload of an inbound turn is untrusted input to the agent — the same trust level as any chat message typed into the panel.
 - The local command is responsible for its own workspace allowlist and command execution policy.
 
 Do not expose the bridge on a public interface unless a stronger authentication layer is added.
@@ -171,11 +236,16 @@ Do not expose the bridge on a public interface unless a stronger authentication 
 - If the bridge is not running, `local_agent_review` fails before capturing evidence.
 - If no review command is configured, the bridge returns a setup message plus a short request summary.
 - If the review command times out, the bridge terminates it and returns a timeout error.
-- If the extension side panel closes, pending terminal commands are rejected.
+- If the extension side panel closes, pending terminal commands are rejected, and pending inbound turns receive `agent-turn-error`.
+- If the requesting client disconnects mid-turn, the bridge forwards `agent-turn-abort` so the headless turn does not run orphaned.
+- If the side panel is not open when an `agent-turn-request` arrives, the bridge answers with a clean `agent-turn-error` instead of hanging.
 
 ## Related Files
 
-- `cli/bridge.ts` - local WebSocket server and review command adapter
+- `cli/bridge.ts` - local WebSocket server, review command adapter, and agent-turn relay
 - `cli/cli.ts` - terminal command entry point
-- `src/cli-bridge.ts` - extension-side bridge client and page evidence capture
+- `bridge.sh` - build-if-stale bridge launcher and connection smoke test
+- `src/cli-bridge.ts` - extension-side bridge client, page evidence capture, and agent-turn dispatch
+- `src/inbound-agent.ts` - headless agent turn runner (pinned work window, busy lock, session persistence)
+- `src/inbound-frames.ts` - normalized frame vocabulary for inbound turns
 - `src/tools/local-agent.ts` - chat tool for local agent review

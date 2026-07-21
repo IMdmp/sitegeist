@@ -1,5 +1,6 @@
 import type { SandboxRuntimeProvider } from "@earendil-works/pi-web-ui";
 import { NATIVE_INPUT_EVENTS_DESCRIPTION } from "../prompts/prompts.js";
+import { queryActiveTab } from "../utils/active-tab.js";
 import { computeDragPath, type NativeInputPoint } from "./native-input-math.js";
 
 type NativeInputModifier = "Alt" | "Control" | "Meta" | "Shift";
@@ -54,6 +55,8 @@ interface NativeMouseEventParams extends Record<string, unknown> {
  * Operates on the currently active tab.
  */
 export class NativeInputEventsRuntimeProvider implements SandboxRuntimeProvider {
+	/** Pin input events to the active tab of this window instead of the caller's. */
+	targetWindowId?: number;
 	private modifiers = 0; // Track currently pressed modifiers
 	// Modifier bit flags for CDP
 	private readonly MODIFIER_ALT = 1;
@@ -69,7 +72,7 @@ export class NativeInputEventsRuntimeProvider implements SandboxRuntimeProvider 
 	 * Get the currently active tab ID
 	 */
 	private async getActiveTabId(): Promise<number> {
-		const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+		const tab = await queryActiveTab(this.targetWindowId);
 		if (!tab?.id) {
 			throw new Error("No active tab found");
 		}

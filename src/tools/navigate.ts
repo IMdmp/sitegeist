@@ -10,6 +10,7 @@ import { TabPill } from "../components/TabPill.js";
 import { NAVIGATE_TOOL_DESCRIPTION } from "../prompts/prompts.js";
 import { getSitegeistStorage } from "../storage/app-storage.js";
 import type { Skill } from "../storage/stores/skills-store.js";
+import { queryActiveTab } from "../utils/active-tab.js";
 import { formatSkills } from "../utils/format-skills.js";
 import "../utils/i18n-extension.js";
 
@@ -68,6 +69,8 @@ export class NavigateTool implements AgentTool<typeof navigateSchema, NavigateRe
 	name = "navigate";
 	description = NAVIGATE_TOOL_DESCRIPTION;
 	parameters = navigateSchema;
+	/** Pin all navigation to this window instead of the caller's current window. */
+	targetWindowId?: number;
 
 	async execute(
 		_toolCallId: string,
@@ -95,10 +98,7 @@ export class NavigateTool implements AgentTool<typeof navigateSchema, NavigateRe
 		}
 
 		// Get active tab for navigation actions
-		const [tab] = await chrome.tabs.query({
-			active: true,
-			currentWindow: true,
-		});
+		const tab = await queryActiveTab(this.targetWindowId);
 
 		if (!tab || !tab.id) {
 			throw new Error("No active tab found");
@@ -222,7 +222,11 @@ export class NavigateTool implements AgentTool<typeof navigateSchema, NavigateRe
 			throw new Error("Aborted");
 		}
 
-		const newTab = await chrome.tabs.create({ url, active: true });
+		const newTab = await chrome.tabs.create({
+			url,
+			active: true,
+			...(this.targetWindowId !== undefined && { windowId: this.targetWindowId }),
+		});
 
 		if (!newTab.id) {
 			throw new Error("Failed to create new tab");

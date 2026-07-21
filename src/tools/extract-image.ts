@@ -9,6 +9,7 @@ import {
 } from "@earendil-works/pi-web-ui";
 import { html } from "lit";
 import { Image as ImageIcon } from "lucide";
+import { queryActiveTab } from "../utils/active-tab.js";
 
 const EXTRACT_IMAGE_DESCRIPTION = `Extract images from the current page. Returns image data that you can see and analyze.
 
@@ -453,7 +454,7 @@ export class ExtractImageTool implements AgentTool<typeof extractImageSchema, Ex
 			content.push({ type: "text", text: `Screenshot captured (max ${maxWidth}px width)` });
 		} else if (args.mode === "fullpage") {
 			if (!this.windowId) throw new Error("windowId not set on ExtractImageTool");
-			const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+			const tab = await queryActiveTab(this.windowId);
 			if (!tab?.id) throw new Error("No active tab");
 
 			const result = await captureFullPage(maxWidth, this.windowId, tab.id);
@@ -464,7 +465,7 @@ export class ExtractImageTool implements AgentTool<typeof extractImageSchema, Ex
 			});
 		} else if (args.mode === "selector") {
 			if (!args.selector) throw new Error("selector is required for 'selector' mode");
-			const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+			const tab = await queryActiveTab(this.windowId);
 			if (!tab?.id) throw new Error("No active tab");
 
 			const info = await getImageInfoFromPage(tab.id, args.selector);
@@ -477,7 +478,7 @@ export class ExtractImageTool implements AgentTool<typeof extractImageSchema, Ex
 		} else if (args.mode === "element") {
 			if (!this.windowId) throw new Error("windowId not set on ExtractImageTool");
 			if (!args.selector) throw new Error("selector is required for 'element' mode");
-			const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+			const tab = await queryActiveTab(this.windowId);
 			if (!tab?.id) throw new Error("No active tab");
 
 			const result = await captureElementRegion(maxWidth, this.windowId, tab.id, args.selector);

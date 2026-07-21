@@ -41,7 +41,53 @@ type LocalAgentResponseMessage = {
 	error?: string;
 };
 
-type BridgeMessage = BridgeRoleMessage | CliCommandMessage | ExtensionResponseMessage | LocalAgentRequestMessage;
+type AgentTurnRequestMessage = {
+	type: "agent-turn-request";
+	requestId: string;
+	task: string;
+	sessionId?: string;
+	model?: string;
+	thinkingLevel?: string;
+	resume?: boolean;
+};
+
+type AgentTurnEventMessage = {
+	type: "agent-turn-event";
+	requestId: string;
+	seq: number;
+	event: Record<string, unknown>;
+};
+
+type AgentTurnCompleteMessage = {
+	type: "agent-turn-complete";
+	requestId: string;
+	status: "completed" | "failed" | "interrupted";
+	finalText?: string;
+	error?: string;
+	usage?: Record<string, unknown>;
+	sessionId?: string;
+};
+
+type AgentTurnErrorMessage = {
+	type: "agent-turn-error";
+	requestId: string;
+	error: string;
+};
+
+type AgentTurnAbortMessage = {
+	type: "agent-turn-abort";
+	requestId: string;
+};
+
+type BridgeMessage =
+	| BridgeRoleMessage
+	| CliCommandMessage
+	| ExtensionResponseMessage
+	| LocalAgentRequestMessage
+	| AgentTurnRequestMessage
+	| AgentTurnEventMessage
+	| AgentTurnCompleteMessage
+	| AgentTurnAbortMessage;
 
 type BridgeSocket = WebSocket;
 
@@ -58,7 +104,17 @@ function parseMessage(data: unknown): BridgeMessage | undefined {
 	}
 }
 
-function sendJson(socket: BridgeSocket, message: ExtensionResponseMessage | CliCommandMessage | LocalAgentResponseMessage): void {
+type OutgoingMessage =
+	| ExtensionResponseMessage
+	| CliCommandMessage
+	| LocalAgentResponseMessage
+	| AgentTurnRequestMessage
+	| AgentTurnEventMessage
+	| AgentTurnCompleteMessage
+	| AgentTurnErrorMessage
+	| AgentTurnAbortMessage;
+
+function sendJson(socket: BridgeSocket, message: OutgoingMessage): void {
 	socket.send(JSON.stringify(message));
 }
 
@@ -223,6 +279,7 @@ export function startBridge(options: { host?: string; port?: number; reviewComma
 	const server = new WebSocketServer({ host, port });
 	let extensionSocket: BridgeSocket | undefined;
 	const pending = new Map<string, BridgeSocket>();
+	const pendingAgentTurns = new Map<string, BridgeSocket>();
 
 	function rejectPending(error: string): void {
 		for (const [requestId, socket] of pending) {
@@ -231,6 +288,13 @@ export function startBridge(options: { host?: string; port?: number; reviewComma
 			}
 		}
 		pending.clear();
+
+		for (const [requestId, socket] of pendingAgentTurns) {
+			if (isOpen(socket)) {
+				sendJson(socket, { type: "agent-turn-error", requestId, error });
+			}
+		}
+		pendingAgentTurns.clear();
 	}
 
 	server.on("connection", (socket, request) => {
@@ -298,6 +362,50 @@ export function startBridge(options: { host?: string; port?: number; reviewComma
 				return;
 			}
 
+			if (message.type === "agent-turn-request") {
+				if (browserOrigin) {
+					sendJson(socket, {
+						type: "agent-turn-error",
+						requestId: message.requestId,
+						error: "Agent turn requests are accepted only from local non-browser clients",
+					});
+					return;
+				}
+
+				if (!isOpen(extensionSocket)) {
+					sendJson(socket, {
+						type: "agent-turn-error",
+						requestId: message.requestId,
+						error: "Sitegeist sidepanel is not connected. Open the extension side panel and retry.",
+					});
+					return;
+				}
+
+				pendingAgentTurns.set(message.requestId, socket);
+				sendJson(extensionSocket, message);
+				return;
+			}
+
+			if (message.type === "agent-turn-event" || message.type === "agent-turn-complete") {
+				if (socket !== extensionSocket) return;
+				const adapterSocket = pendingAgentTurns.get(message.requestId);
+				if (message.type === "agent-turn-complete") {
+					pendingAgentTurns.delete(message.requestId);
+				}
+				if (isOpen(adapterSocket)) {
+					sendJson(adapterSocket, message);
+				}
+				return;
+			}
+
+			if (message.type === "agent-turn-abort") {
+				if (pendingAgentTurns.get(message.requestId) !== socket) return;
+				if (isOpen(extensionSocket)) {
+					sendJson(extensionSocket, message);
+				}
+				return;
+			}
+
 			if (message.type === "local-agent-request") {
 				if (socket !== extensionSocket) {
 					sendJson(socket, {
@@ -353,6 +461,15 @@ export function startBridge(options: { host?: string; port?: number; reviewComma
 			for (const [requestId, pendingSocket] of pending) {
 				if (pendingSocket === socket) {
 					pending.delete(requestId);
+				}
+			}
+
+			for (const [requestId, pendingSocket] of pendingAgentTurns) {
+				if (pendingSocket === socket) {
+					pendingAgentTurns.delete(requestId);
+					if (isOpen(extensionSocket)) {
+						sendJson(extensionSocket, { type: "agent-turn-abort", requestId });
+					}
 				}
 			}
 		});

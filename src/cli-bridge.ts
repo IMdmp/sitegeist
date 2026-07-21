@@ -1,6 +1,9 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type { SandboxRuntimeProvider } from "@earendil-works/pi-web-ui";
 import { brandCliCommand, branding } from "./branding.js";
+import { abortInboundAgentTurn, runInboundAgentTurn } from "./inbound-agent.js";
+import type { AgentTurnCompletion, SitegeistTurnFrame } from "./inbound-frames.js";
+import type { SitegeistAppStorage } from "./storage/app-storage.js";
 import { ExtractImageTool } from "./tools/extract-image.js";
 import { NativeInputEventsRuntimeProvider } from "./tools/NativeInputEventsRuntimeProvider.js";
 import { NavigateTool } from "./tools/navigate.js";
@@ -24,7 +27,22 @@ type LocalAgentResponse = {
 	error?: string;
 };
 
-type BridgeMessage = BridgeCommand | LocalAgentResponse;
+type AgentTurnRequest = {
+	type: "agent-turn-request";
+	requestId: string;
+	task: string;
+	sessionId?: string;
+	model?: string;
+	thinkingLevel?: string;
+	resume?: boolean;
+};
+
+type AgentTurnAbort = {
+	type: "agent-turn-abort";
+	requestId: string;
+};
+
+type BridgeMessage = BridgeCommand | LocalAgentResponse | AgentTurnRequest | AgentTurnAbort;
 
 type BrowserJsResponse = {
 	success: boolean;
@@ -101,8 +119,15 @@ const PAGE_CASE_SCRIPT = `(() => {
 	};
 })()`;
 
+export type InboundBridgeOptions = {
+	storage: SitegeistAppStorage;
+	getWindowId: () => number | undefined;
+	isPanelBusy: () => boolean;
+};
+
 let socket: WebSocket | undefined;
 let reconnectTimer: number | undefined;
+let inboundTurnOptions: InboundBridgeOptions | undefined;
 const pendingLocalAgentRequests = new Map<
 	string,
 	{
@@ -122,6 +147,61 @@ function sendResponse(message: BridgeCommand, ok: boolean, result?: unknown, err
 			result,
 			error,
 		}),
+	);
+}
+
+function sendAgentTurnEvent(requestId: string, seq: number, event: SitegeistTurnFrame): void {
+	if (!socket || socket.readyState !== WebSocket.OPEN) return;
+	socket.send(
+		JSON.stringify({
+			type: "agent-turn-event",
+			requestId,
+			seq,
+			event,
+		}),
+	);
+}
+
+function sendAgentTurnComplete(requestId: string, completion: AgentTurnCompletion): void {
+	if (!socket || socket.readyState !== WebSocket.OPEN) return;
+	socket.send(
+		JSON.stringify({
+			type: "agent-turn-complete",
+			requestId,
+			...completion,
+		}),
+	);
+}
+
+function handleAgentTurnRequest(message: AgentTurnRequest): void {
+	if (!inboundTurnOptions) {
+		sendAgentTurnComplete(message.requestId, {
+			status: "failed",
+			error: `${branding.productName} inbound agent turns are not initialized`,
+			sessionId: message.sessionId,
+		});
+		return;
+	}
+	const windowId = inboundTurnOptions.getWindowId();
+	if (windowId === undefined) {
+		sendAgentTurnComplete(message.requestId, {
+			status: "failed",
+			error: `${branding.productName} window is not ready yet`,
+			sessionId: message.sessionId,
+		});
+		return;
+	}
+	void runInboundAgentTurn(
+		message,
+		{
+			storage: inboundTurnOptions.storage,
+			windowId,
+			isPanelBusy: inboundTurnOptions.isPanelBusy,
+		},
+		{
+			sendEvent: sendAgentTurnEvent,
+			sendComplete: sendAgentTurnComplete,
+		},
 	);
 }
 
@@ -351,7 +431,11 @@ async function executeCommand(message: BridgeCommand, windowId: number): Promise
 	throw new Error(`Unknown ${branding.productName} CLI command: ${message.command}`);
 }
 
-export function startCliBridgeClient(getWindowId: () => number | undefined): void {
+export function startCliBridgeClient(
+	getWindowId: () => number | undefined,
+	inbound: { storage: SitegeistAppStorage; isPanelBusy: () => boolean },
+): void {
+	inboundTurnOptions = { storage: inbound.storage, isPanelBusy: inbound.isPanelBusy, getWindowId };
 	if (socket || reconnectTimer !== undefined) return;
 
 	const connect = () => {
@@ -375,6 +459,16 @@ export function startCliBridgeClient(getWindowId: () => number | undefined): voi
 
 				if (message.type === "local-agent-response") {
 					handleLocalAgentResponse(message);
+					return;
+				}
+
+				if (message.type === "agent-turn-request") {
+					handleAgentTurnRequest(message);
+					return;
+				}
+
+				if (message.type === "agent-turn-abort") {
+					abortInboundAgentTurn(message.requestId);
 					return;
 				}
 

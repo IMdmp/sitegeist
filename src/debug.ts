@@ -66,9 +66,10 @@ const TEST_PROMPTS: TestPrompt[] = [
 
 const renderDebugPage = async () => {
 	// Get current debugger mode state
-	const stored = await chrome.storage.local.get(["debuggerMode", "showJsonMode"]);
+	const stored = await chrome.storage.local.get(["debuggerMode", "showJsonMode", "inboundPinnedWindow"]);
 	let debuggerMode = (stored.debuggerMode as boolean) || false;
 	let showJsonMode = (stored.showJsonMode as boolean) || false;
+	let inboundPinnedWindow = stored.inboundPinnedWindow !== false;
 
 	const updateDebuggerMode = async (enabled: boolean) => {
 		debuggerMode = enabled;
@@ -79,6 +80,12 @@ const renderDebugPage = async () => {
 	const updateShowJsonMode = async (enabled: boolean) => {
 		showJsonMode = enabled;
 		await chrome.storage.local.set({ showJsonMode: enabled });
+		renderDebugPage(); // Re-render to update UI
+	};
+
+	const updateInboundPinnedWindow = async (enabled: boolean) => {
+		inboundPinnedWindow = enabled;
+		await chrome.storage.local.set({ inboundPinnedWindow: enabled });
 		renderDebugPage(); // Re-render to update UI
 	};
 
@@ -139,6 +146,18 @@ const renderDebugPage = async () => {
 							showJsonMode,
 							(checked: boolean) => {
 								updateShowJsonMode(checked);
+							},
+							undefined,
+							false,
+							"",
+						)}
+					</div>
+					<div class="flex items-center gap-2" title="Run inbound bridge turns in a dedicated browser window instead of your active tab">
+						<span class="text-xs text-muted-foreground">Pinned Window</span>
+						${Switch(
+							inboundPinnedWindow,
+							(checked: boolean) => {
+								updateInboundPinnedWindow(checked);
 							},
 							undefined,
 							false,

@@ -8,13 +8,11 @@ import {
 	type AgentMessage,
 	type AgentState,
 	type AgentTool,
-	type StreamFn,
 } from "@earendil-works/pi-agent-core";
 import { getModel, getModels, type Model } from "@earendil-works/pi-ai";
 import {
 	ChatPanel,
 	createExtractDocumentTool,
-	createStreamFn,
 	ProxyTab,
 	SettingsDialog,
 	// PersistentStorageDialog,
@@ -23,6 +21,13 @@ import {
 } from "@earendil-works/pi-web-ui";
 import { html, render } from "lit";
 import { History, Plus, Settings } from "lucide";
+import {
+	createProviderKeyResolver,
+	createSitegeistStreamFn,
+	DEFAULT_MODELS,
+	getProvidersWithKeys,
+	resolveDefaultModel,
+} from "./agent-factory.js";
 import { brandUrl } from "./branding.js";
 import { startCliBridgeClient } from "./cli-bridge.js";
 import { AboutTab } from "./dialogs/AboutTab.js";
@@ -44,13 +49,9 @@ import {
 } from "./messages/NavigationMessage.js";
 import { registerUserMessageRenderer } from "./messages/UserMessageRenderer.js";
 import { createWelcomeMessage, registerWelcomeRenderer } from "./messages/WelcomeMessage.js";
-import { isOAuthCredentials, resolveApiKey } from "./oauth/index.js";
+import { isOAuthCredentials } from "./oauth/index.js";
 import { SYSTEM_PROMPT } from "./prompts/prompts.js";
-import {
-	applyCloudflareWorkersAiCredentials,
-	isCloudflareWorkersAiProvider,
-	parseCloudflareWorkersAiCredentials,
-} from "./providers/cloudflare-workers-ai.js";
+import { parseCloudflareWorkersAiCredentials } from "./providers/cloudflare-workers-ai.js";
 import {
 	buildSessionPreview,
 	generateSessionTitle,
@@ -125,35 +126,8 @@ const recordedCostMessages = new Set<AgentMessage>();
 // Cached auth type label for the current provider
 let authLabel = "";
 
-const DEFAULT_MODELS: Record<string, string> = {
-	"amazon-bedrock": "us.anthropic.claude-opus-4-6-v1",
-	anthropic: "claude-sonnet-4-6",
-	"azure-openai-responses": "gpt-5.2",
-	cerebras: "zai-glm-4.6",
-	"cloudflare-workers-ai": "@cf/moonshotai/kimi-k2.6",
-	"github-copilot": "gpt-4o",
-	google: "gemini-2.5-flash",
-	"google-antigravity": "gemini-3.1-pro-high",
-	"google-gemini-cli": "gemini-2.5-pro",
-	"google-vertex": "gemini-3-pro-preview",
-	groq: "openai/gpt-oss-20b",
-	huggingface: "moonshotai/Kimi-K2.5",
-	"kimi-coding": "kimi-k2-thinking",
-	minimax: "MiniMax-M2.1",
-	"minimax-cn": "MiniMax-M2.1",
-	mistral: "devstral-medium-latest",
-	openai: "gpt-4o-mini",
-	"openai-codex": "gpt-5.1-codex-mini",
-	opencode: "claude-opus-4-6",
-	"opencode-go": "kimi-k2.5",
-	openrouter: "openai/gpt-5.1-codex",
-	"vercel-ai-gateway": "anthropic/claude-opus-4-6",
-	xai: "grok-4-fast-non-reasoning",
-	zai: "glm-4.6",
-};
-
 async function selectDefaultModelForAvailableProvider() {
-	const providers = await getProvidersWithKeys();
+	const providers = await getProvidersWithKeys(storage);
 	if (providers.length === 0 || !agent) return;
 
 	// Try each provider with keys and find a default model
@@ -182,16 +156,6 @@ async function selectDefaultModelForAvailableProvider() {
 			return;
 		}
 	}
-}
-
-async function getProvidersWithKeys(): Promise<string[]> {
-	const providers = await storage.providerKeys.list();
-	const result: string[] = [];
-	for (const provider of providers) {
-		const key = await storage.providerKeys.get(provider);
-		if (key) result.push(provider);
-	}
-	return result;
 }
 
 async function hasAnyApiKey(): Promise<boolean> {
@@ -229,29 +193,6 @@ export function getShownSkills(): Map<string, string> {
 // ============================================================================
 // HELPERS
 // ============================================================================
-async function getStoredProviderKey(provider: string) {
-	if (!isCloudflareWorkersAiProvider(provider)) return undefined;
-	return (await storage.providerKeys.get(provider)) || undefined;
-}
-
-type SitegeistStreamFn = StreamFn;
-type SitegeistStreamFnArgs = Parameters<SitegeistStreamFn>;
-
-function createSitegeistStreamFn(): SitegeistStreamFn {
-	const baseStreamFn = createStreamFn(async () => {
-		const enabled = await storage.settings.get<boolean>("proxy.enabled");
-		if (!enabled) return undefined;
-		return (await storage.settings.get<string>("proxy.url")) || undefined;
-	});
-
-	return (async (...args: SitegeistStreamFnArgs) => {
-		const [model, context, options] = args;
-		const storedProviderKey = await getStoredProviderKey(model.provider);
-		const resolvedModel = applyCloudflareWorkersAiCredentials(model, storedProviderKey);
-		return baseStreamFn(resolvedModel, context, options) as unknown as ReturnType<SitegeistStreamFn>;
-	}) as SitegeistStreamFn;
-}
-
 function schedulePostAgentEndRender() {
 	if (postAgentEndRenderTimer !== undefined) return;
 	postAgentEndRenderTimer = window.setTimeout(() => {
@@ -362,30 +303,10 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 	const corsProxyEnabled = await storage.settings.get<boolean>("proxy.enabled");
 	const corsProxyUrl = await storage.settings.get<string>("proxy.url");
 
-	// Determine default model: saved > default for a provider with key > gemini flash fallback
+	// Determine default model: saved > default for a provider with key > sonnet fallback
 	let defaultModel: Model<any> | undefined;
 	if (!initialState?.model) {
-		const savedModel = await storage.settings.get<Model<any>>("lastUsedModel");
-		if (savedModel) {
-			defaultModel = savedModel;
-		} else {
-			// Try to find a default model for a provider the user already has a key for
-			const providersWithKeys = await getProvidersWithKeys();
-			for (const provider of providersWithKeys) {
-				const modelId = DEFAULT_MODELS[provider];
-				if (modelId) {
-					const model = getModel(provider as any, modelId);
-					if (model) {
-						defaultModel = model;
-						break;
-					}
-				}
-			}
-		}
-	}
-	// Final fallback
-	if (!defaultModel && !initialState?.model) {
-		defaultModel = getModel("anthropic", "claude-sonnet-4-6");
+		defaultModel = await resolveDefaultModel(storage);
 	}
 
 	agent = new Agent({
@@ -398,14 +319,8 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 		},
 		convertToLlm: browserMessageTransformer,
 		toolExecution: "sequential",
-		streamFn: createSitegeistStreamFn(),
-		getApiKey: async (provider: string) => {
-			const stored = await storage.providerKeys.get(provider);
-			if (!stored) return undefined;
-			const proxyEnabled = await storage.settings.get<boolean>("proxy.enabled");
-			const proxyUrl = proxyEnabled ? (await storage.settings.get<string>("proxy.url")) || undefined : undefined;
-			return resolveApiKey(stored, provider, storage.providerKeys, proxyUrl);
-		},
+		streamFn: createSitegeistStreamFn(storage),
+		getApiKey: createProviderKeyResolver(storage),
 	});
 
 	await updateAuthLabel();
@@ -939,7 +854,10 @@ async function initApp() {
 
 	// Initialize port communication system
 	port.initialize(currentWindowId);
-	startCliBridgeClient(() => currentWindowId);
+	startCliBridgeClient(() => currentWindowId, {
+		storage,
+		isPanelBusy: () => agent?.state.isStreaming ?? false,
+	});
 
 	// TODO reenable Request persistent storage
 	// if (storage.sessions) {
@@ -1057,4 +975,18 @@ async function initApp() {
 // Register custom user message renderer early, before any session loads
 registerUserMessageRenderer();
 
-initApp();
+initApp().catch((error: unknown) => {
+	console.error("[Sidepanel] initApp failed:", error);
+	const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+	render(
+		html`
+			<div class="w-full h-full flex items-center justify-center bg-background text-foreground p-4">
+				<div class="max-w-full">
+					<div class="text-destructive font-semibold mb-2">Failed to start</div>
+					<pre class="text-xs text-muted-foreground whitespace-pre-wrap break-all">${message}</pre>
+				</div>
+			</div>
+		`,
+		document.body,
+	);
+});

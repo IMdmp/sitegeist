@@ -12,6 +12,8 @@
 - Skill installation from a JSON URL with validation and review before saving
 - Full-page and element-region screenshot modes for the image extraction tool
 - Trusted native input gestures for chart drag selection, hover tooltips, wheel zoom, positioned clicks, and SVG chart tick helpers
+- Inbound `agent-turn` bridge verb: local clients can run a headless agent turn against the active tab over the CLI bridge, streamed back as normalized frames with a resumable session id; busy-rejects while the visible panel is streaming and excludes the human-blocking and debugger tools
+- Pinned work window for inbound bridge turns: headless turns run in a dedicated browser window so they keep working while the user browses in their own tabs; toggleable on the debug page ("Pinned Window", default on)
 
 ### Changed
 
@@ -27,6 +29,8 @@
 - Model selector not refreshing the selected model after choosing a Cloudflare Workers AI model
 - Cloudflare Workers AI requests not applying the saved Account ID during streaming
 - Dependency audit vulnerabilities in the extension and static site toolchains
+- Side panel stuck on "Loading..." forever when startup fails; init errors now render with a stack trace
+- IndexedDB version conflict ("requested version (4) is less than the existing version (5)") for profiles previously upgraded by an unmerged v5 build; storage now opens at v6
 
 ## [1.0.0] - 2026-03-15
 

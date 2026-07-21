@@ -87,9 +87,9 @@ The Husky pre-commit hook runs the same checks before each commit.
 
 ## CLI bridge
 
-Sitegeist can expose the active browser tab to terminal agents through a local WebSocket bridge.
+Sitegeist can expose the active browser tab to terminal agents through a local WebSocket bridge. The bridge also accepts inbound `agent-turn` requests, letting a local client run a full headless Sitegeist agent turn in the browser — this is how Sitegeist joins a Codor channel as the `@chrome` member.
 
-See [docs/local-bridge.md](docs/local-bridge.md) for the full protocol, security model, and local review adapter contract.
+See [docs/local-bridge.md](docs/local-bridge.md) for the full protocol, the inbound agent-turn contract, security model, and local review adapter contract.
 
 Build and link the CLI once:
 
@@ -106,7 +106,11 @@ Start the bridge in a terminal:
 sitegeist bridge
 ```
 
+Or use the repo-root helper (`./bridge.sh` to start, `./bridge.sh --check` to smoke-test the bridge and side panel connection).
+
 The bridge listens on `ws://127.0.0.1:17373` by default.
+
+Inbound headless turns run in a dedicated pinned browser window by default, so they keep working while you browse in your own tabs. Toggle "Pinned Window" on the extension debug page.
 
 Open the Sitegeist side panel in Chrome so the extension connects to the bridge, then run:
 
