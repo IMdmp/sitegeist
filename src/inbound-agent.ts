@@ -16,10 +16,11 @@ import {
 } from "./agent-factory.js";
 import type { AgentTurnCompletion, SitegeistTurnFrame, TurnUsage } from "./inbound-frames.js";
 import { browserMessageTransformer } from "./messages/message-transformer.js";
-import { SYSTEM_PROMPT } from "./prompts/prompts.js";
+import { SYSTEM_PROMPT, withMemoryIndex } from "./prompts/prompts.js";
 import { buildSessionPreview, generateSessionTitle, shouldSaveSession } from "./session-state.js";
 import type { SitegeistAppStorage } from "./storage/app-storage.js";
 import { ExtractImageTool } from "./tools/extract-image.js";
+import { memoryTool } from "./tools/memory.js";
 import { NativeInputEventsRuntimeProvider } from "./tools/NativeInputEventsRuntimeProvider.js";
 import { NavigateTool } from "./tools/navigate.js";
 import { ChartHelpersRuntimeProvider } from "./tools/repl/ChartHelpersRuntimeProvider.js";
@@ -120,7 +121,7 @@ function buildHeadlessTools(windowId: number, corsProxyUrl: string | undefined):
 	const extractImageTool = new ExtractImageTool();
 	extractImageTool.windowId = windowId;
 
-	return [navigateTool, replTool, skillTool, extractDocumentTool, extractImageTool];
+	return [navigateTool, replTool, skillTool, extractDocumentTool, extractImageTool, memoryTool];
 }
 
 function textFromAssistantContent(content: AssistantMessage["content"]): string {
@@ -347,9 +348,10 @@ export async function runInboundAgentTurn(
 		const targetWindowId = (await isPinnedWindowEnabled()) ? await ensureWorkWindow() : windowId;
 		const tools = buildHeadlessTools(targetWindowId, corsProxyUrl);
 
+		const memoryIndex = await storage.memories.getIndex();
 		const agent = new Agent({
 			initialState: {
-				systemPrompt: SYSTEM_PROMPT,
+				systemPrompt: withMemoryIndex(SYSTEM_PROMPT, memoryIndex),
 				model,
 				thinkingLevel,
 				messages: resumedMessages,

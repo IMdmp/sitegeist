@@ -4,6 +4,7 @@
  */
 
 import { branding } from "../branding.js";
+import type { MemoryIndexEntry } from "../storage/stores/memory-store.js";
 
 // ============================================================================
 // System Prompt (for Agent initialization)
@@ -68,6 +69,14 @@ Before writing custom DOM code, check for a skill and only fetch details if need
 5. Only write custom code if the skill lacks the needed functionality.
 
 Skills save time and are tested - always check for and use them before custom DOM code.
+
+# Memory
+
+You have durable memory across sessions for user preferences, recurring context, and project constraints. When memories exist, a "Saved Memories" index (id + title) is appended below.
+
+- Read full content with the memory tool: action "get" (by id), "search" (by keyword), or "list".
+- Save a durable fact with action "save" (title + content). Only save what stays useful across sessions - stable preferences, project facts, how the user wants you to work. Do NOT save one-off task details.
+- Update an existing memory by passing its id to "save"; remove stale ones with "delete".
 
 # Common Patterns
 
@@ -565,3 +574,47 @@ You see code, users see webpages. Their visual feedback is essential.
 - Never save a skill until ALL capabilities tested with user
 - Use plain language: "This clicks the button" not "This calls click()"
 - Focus on visual results: "The message should send" not "The function should execute"`;
+
+// ============================================================================
+// Memory
+// ============================================================================
+
+export const MEMORY_TOOL_DESCRIPTION = `# Memory
+
+Durable facts remembered across sessions: user preferences, recurring context, project constraints, and how the user wants you to work.
+
+## Actions
+- **save**: create or update a memory. Provide \`title\` (short) and \`content\` (the fact). Pass an existing \`id\` to update it. Optional \`tags\`.
+- **get**: read one memory's full content by \`id\`.
+- **list**: list all memories (id + title + content).
+- **search**: find memories by keyword (\`query\`).
+- **delete**: remove a memory by \`id\`.
+
+## When to save
+- Stable preferences ("prefers terse answers", "uses pnpm").
+- Project facts that stay true across sessions.
+- Corrections the user makes about how you should behave.
+
+## When NOT to save
+- One-off task details, transient page data, or anything only relevant to the current conversation.
+
+Keep memories short and factual. Prefer updating an existing memory over creating a near-duplicate.`;
+
+const MEMORY_INDEX_MARKER = "\n\n<!--MEMORY_INDEX-->";
+
+/**
+ * Renders the compact "Saved Memories" index appended to the system prompt.
+ * The marker makes injection idempotent (callers strip from the marker before
+ * re-appending). Returns "" when there are no memories.
+ */
+export function renderMemoryIndex(entries: MemoryIndexEntry[]): string {
+	if (entries.length === 0) return "";
+	const lines = entries.map((e) => `- [${e.id}] ${e.title}`).join("\n");
+	return `${MEMORY_INDEX_MARKER}\n\n# Saved Memories\n\nDurable facts from past sessions. Use the memory tool ("get" by id, or "search"/"list") to read full content before relying on one.\n\n${lines}`;
+}
+
+/** Strip any previously-injected memory index, then append a fresh one. */
+export function withMemoryIndex(basePrompt: string, entries: MemoryIndexEntry[]): string {
+	const base = basePrompt.split(MEMORY_INDEX_MARKER)[0];
+	return base + renderMemoryIndex(entries);
+}

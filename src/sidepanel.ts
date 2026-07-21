@@ -33,7 +33,9 @@ import { startCliBridgeClient } from "./cli-bridge.js";
 import { AboutTab } from "./dialogs/AboutTab.js";
 import { ApiKeyOrOAuthDialog } from "./dialogs/ApiKeyOrOAuthDialog.js";
 import { ApiKeysOAuthTab } from "./dialogs/ApiKeysOAuthTab.js";
+import { ArtifactsTab } from "./dialogs/ArtifactsTab.js";
 import { CostsTab } from "./dialogs/CostsTab.js";
+import { MemoryTab } from "./dialogs/MemoryTab.js";
 import { SessionCostDialog } from "./dialogs/SessionCostDialog.js";
 import { SitegeistSessionListDialog } from "./dialogs/SessionListDialog.js";
 import { installSitegeistModelSelector, SITEGEIST_MODEL_SELECTED_EVENT } from "./dialogs/SitegeistModelSelector.js";
@@ -50,7 +52,7 @@ import {
 import { registerUserMessageRenderer } from "./messages/UserMessageRenderer.js";
 import { createWelcomeMessage, registerWelcomeRenderer } from "./messages/WelcomeMessage.js";
 import { isOAuthCredentials } from "./oauth/index.js";
-import { SYSTEM_PROMPT } from "./prompts/prompts.js";
+import { SYSTEM_PROMPT, withMemoryIndex } from "./prompts/prompts.js";
 import { parseCloudflareWorkersAiCredentials } from "./providers/cloudflare-workers-ai.js";
 import {
 	buildSessionPreview,
@@ -63,6 +65,7 @@ import { DebuggerTool } from "./tools/debugger.js";
 import { ExtractImageTool, registerExtractImageRenderer } from "./tools/extract-image.js";
 import { AskUserWhichElementTool, skillTool } from "./tools/index.js";
 import { LocalAgentReviewTool, registerLocalAgentReviewRenderer } from "./tools/local-agent.js";
+import { memoryTool } from "./tools/memory.js";
 import { NativeInputEventsRuntimeProvider } from "./tools/NativeInputEventsRuntimeProvider.js";
 import { isToolNavigating, NavigateTool } from "./tools/navigate.js";
 import { ChartHelpersRuntimeProvider } from "./tools/repl/ChartHelpersRuntimeProvider.js";
@@ -164,7 +167,15 @@ async function hasAnyApiKey(): Promise<boolean> {
 }
 
 function openApiKeysDialog(): Promise<void> {
-	return SettingsDialog.open([new ApiKeysOAuthTab(), new CostsTab(), new SkillsTab(), new ProxyTab(), new AboutTab()]);
+	return SettingsDialog.open([
+		new ApiKeysOAuthTab(),
+		new CostsTab(),
+		new SkillsTab(),
+		new ArtifactsTab(),
+		new MemoryTab(),
+		new ProxyTab(),
+		new AboutTab(),
+	]);
 }
 
 async function updateAuthLabel() {
@@ -309,14 +320,22 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 		defaultModel = await resolveDefaultModel(storage);
 	}
 
+	// Inject a fresh "Saved Memories" index into the system prompt each session
+	// start (hybrid recall: compact index eager, full content via the memory tool).
+	// Idempotent — withMemoryIndex strips any previously-injected block first.
+	const memoryIndex = await storage.memories.getIndex();
+	const resolvedInitialState: Partial<AgentState> = initialState
+		? { ...initialState, systemPrompt: withMemoryIndex(initialState.systemPrompt ?? SYSTEM_PROMPT, memoryIndex) }
+		: {
+				systemPrompt: withMemoryIndex(SYSTEM_PROMPT, memoryIndex),
+				model: defaultModel,
+				thinkingLevel: "medium",
+				messages: [],
+				tools: [],
+			};
+
 	agent = new Agent({
-		initialState: initialState || {
-			systemPrompt: SYSTEM_PROMPT,
-			model: defaultModel,
-			thinkingLevel: "medium",
-			messages: [],
-			tools: [],
-		},
+		initialState: resolvedInitialState,
 		convertToLlm: browserMessageTransformer,
 		toolExecution: "sequential",
 		streamFn: createSitegeistStreamFn(storage),
@@ -431,7 +450,16 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 			if (!agent) return;
 			SessionCostDialog.open(agent.state.messages);
 		},
-		toolsFactory: (_agent, _agentInterface, _artifactsPanel, runtimeProvidersFactory) => {
+		toolsFactory: (_agent, _agentInterface, artifactsPanel, runtimeProvidersFactory) => {
+			// Persist artifacts to the cross-session store on every change so the
+			// "Saved Artifacts" view can browse them later. Wrap (don't replace)
+			// ChatPanel's own callback, which tracks count / auto-open.
+			const existingOnChange = artifactsPanel.onArtifactsChange;
+			artifactsPanel.onArtifactsChange = () => {
+				existingOnChange?.();
+				void storage.artifacts.syncSession(currentSessionId, artifactsPanel.artifacts, currentTitle || undefined);
+			};
+
 			const navigateTool = new NavigateTool();
 			const selectElementTool = new AskUserWhichElementTool();
 
@@ -470,6 +498,7 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 				selectElementTool,
 				replTool,
 				skillTool,
+				memoryTool,
 				extractDocumentTool,
 				extractImageTool,
 				localAgentReviewTool,
@@ -625,6 +654,8 @@ const renderApp = () => {
 								new ApiKeysOAuthTab(),
 								new CostsTab(),
 								new SkillsTab(),
+								new ArtifactsTab(),
+								new MemoryTab(),
 								new ProxyTab(),
 								new AboutTab(),
 							]),

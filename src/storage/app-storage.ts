@@ -7,16 +7,20 @@ import {
 	SessionsStore,
 	SettingsStore,
 } from "@earendil-works/pi-web-ui";
+import { ArtifactsStore } from "./stores/artifacts-store.js";
 import { CostStore } from "./stores/cost-store.js";
+import { MemoryStore } from "./stores/memory-store.js";
 import { SitegeistSessionsStore } from "./stores/sessions-store.js";
 import { SkillsStore } from "./stores/skills-store.js";
 
 /**
- * Extended AppStorage with skills, memories, and prompts stores.
+ * Extended AppStorage with skills, memories, artifacts, and cost stores.
  */
 export class SitegeistAppStorage extends BaseAppStorage {
 	readonly skills: SkillsStore;
 	readonly costs: CostStore;
+	readonly artifacts: ArtifactsStore;
+	readonly memories: MemoryStore;
 
 	constructor() {
 		// 1. Create all stores (no backend yet)
@@ -26,6 +30,8 @@ export class SitegeistAppStorage extends BaseAppStorage {
 		const customProviders = new CustomProvidersStore();
 		const skills = new SkillsStore();
 		const costs = new CostStore();
+		const artifacts = new ArtifactsStore();
+		const memories = new MemoryStore();
 
 		// 2. Gather configs from all stores
 		const configs = [
@@ -37,15 +43,17 @@ export class SitegeistAppStorage extends BaseAppStorage {
 			skills.getConfig(),
 			SkillsStore.getVersionsConfig(),
 			costs.getConfig(),
+			artifacts.getConfig(),
+			memories.getConfig(),
 		];
 
 		// 3. Create backend with all configs
 		const backend = new IndexedDBStorageBackend({
 			dbName: "sitegeist-storage",
-			// v6: recover profiles where an unmerged v5 build (artifacts + memories
-			// stores) already upgraded the on-disk database; IndexedDB cannot open
-			// at a lower version than the one on disk. The upgrade handler only
-			// creates missing stores, so jumping versions is safe.
+			// v6: v5 added the artifacts + memories stores; v6 recovers profiles a
+			// pre-merge build already opened at a higher version (IndexedDB cannot
+			// open at a lower version than the one on disk). The upgrade handler
+			// only creates missing stores, so jumping versions is safe.
 			version: 6,
 			stores: configs,
 		});
@@ -57,6 +65,8 @@ export class SitegeistAppStorage extends BaseAppStorage {
 		sessions.setBackend(backend);
 		skills.setBackend(backend);
 		costs.setBackend(backend);
+		artifacts.setBackend(backend);
+		memories.setBackend(backend);
 
 		// 5. Pass base stores to parent
 		super(settings, providerKeys, sessions, customProviders, backend);
@@ -64,6 +74,8 @@ export class SitegeistAppStorage extends BaseAppStorage {
 		// 6. Store references to extension-specific stores
 		this.skills = skills;
 		this.costs = costs;
+		this.artifacts = artifacts;
+		this.memories = memories;
 	}
 }
 

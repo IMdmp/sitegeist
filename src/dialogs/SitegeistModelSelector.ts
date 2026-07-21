@@ -14,7 +14,7 @@ import { DialogBase } from "@mariozechner/mini-lit/dist/DialogBase.js";
 import { html, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { createRef, ref } from "lit/directives/ref.js";
-import { Brain, Image as ImageIcon } from "lucide";
+import { Brain, Globe, Image as ImageIcon } from "lucide";
 import { discoverModels } from "../../node_modules/@earendil-works/pi-web-ui/dist/utils/model-discovery.js";
 
 type ModelListItem = {
@@ -30,6 +30,9 @@ class SitegeistModelSelector extends DialogBase {
 	@state() currentModel: Model<any> | null = null;
 	@state() private customProviderModels: Model<any>[] = [];
 	@state() private customProvidersLoading = false;
+	@state() private configuredProviders = new Set<string>();
+	@state() private configuredLoading = true;
+	@state() private showAllProviders = false;
 	@state() private filterProvider = "";
 	@state() private filterThinking = false;
 	@state() private filterVision = false;
@@ -51,6 +54,7 @@ class SitegeistModelSelector extends DialogBase {
 		selector.onSelectCallback = onSelect;
 		selector.open();
 		selector.loadCustomProviders();
+		selector.loadConfiguredProviders();
 	}
 
 	override async firstUpdated(changedProperties: PropertyValues): Promise<void> {
@@ -135,6 +139,30 @@ class SitegeistModelSelector extends DialogBase {
 		}
 	}
 
+	// Configured = registry providers with a stored key (API key, OAuth creds, or
+	// Cloudflare Workers AI). Custom providers are handled separately (only loaded
+	// ones ever reach customProviderModels). Keeps the current model visible even
+	// if its provider key was later removed.
+	private async loadConfiguredProviders() {
+		this.configuredLoading = true;
+		const configured = new Set<string>();
+		try {
+			const storage = getAppStorage();
+			const providers = await storage.providerKeys.list();
+			for (const provider of providers) {
+				const key = await storage.providerKeys.get(provider);
+				if (key) configured.add(provider);
+			}
+		} catch (error) {
+			console.error("Failed to load configured providers:", error);
+		} finally {
+			if (this.currentModel?.provider) configured.add(this.currentModel.provider);
+			this.configuredProviders = configured;
+			this.configuredLoading = false;
+			this.requestUpdate();
+		}
+	}
+
 	private resetSelection() {
 		this.selectedIndex = 0;
 		if (this.scrollContainerRef.value) {
@@ -152,6 +180,7 @@ class SitegeistModelSelector extends DialogBase {
 		const allModels: ModelListItem[] = [];
 
 		for (const provider of getProviders()) {
+			if (!this.showAllProviders && !this.configuredProviders.has(provider)) continue;
 			for (const model of getModels(provider as any)) {
 				allModels.push({ provider, id: model.id, model });
 			}
@@ -268,13 +297,55 @@ class SitegeistModelSelector extends DialogBase {
 						className: "rounded-full",
 						children: html`<span class="inline-flex items-center gap-1">${icon(ImageIcon, "sm")} Vision</span>`,
 					})}
+					${Button({
+						variant: this.showAllProviders ? "default" : "secondary",
+						size: "sm",
+						onClick: () => {
+							this.showAllProviders = !this.showAllProviders;
+							this.resetSelection();
+						},
+						className: "rounded-full",
+						children: html`<span class="inline-flex items-center gap-1">${icon(Globe, "sm")} All providers</span>`,
+					})}
 					<span class="text-xs text-muted-foreground ml-auto">
-						${this.customProvidersLoading ? "Loading custom providers..." : `${filteredModels.length} models`}
+						${this.customProvidersLoading || this.configuredLoading ? "Loading providers..." : `${filteredModels.length} models`}
 					</span>
 				</div>
 			</div>
 
 			<div class="flex-1 overflow-y-auto" ${ref(this.scrollContainerRef)}>
+				${
+					filteredModels.length === 0 && !this.configuredLoading && !this.customProvidersLoading
+						? html`
+							<div class="flex flex-col items-center justify-center gap-3 py-16 px-6 text-center">
+								<span class="text-muted-foreground">${icon(Globe, "lg")}</span>
+								<div class="text-sm text-foreground font-medium">
+									${this.showAllProviders ? "No models match your filters" : "No configured providers"}
+								</div>
+								<div class="text-xs text-muted-foreground max-w-xs">
+									${
+										this.showAllProviders
+											? "Try clearing the search or filters above."
+											: "Add an API key or log in with a subscription to see models here."
+									}
+								</div>
+								${
+									this.showAllProviders
+										? ""
+										: Button({
+												variant: "secondary",
+												size: "sm",
+												onClick: () => {
+													this.showAllProviders = true;
+													this.resetSelection();
+												},
+												children: "Show all providers",
+											})
+								}
+							</div>
+						`
+						: ""
+				}
 				${filteredModels.map(({ provider, id, model }, index) => {
 					const isCurrent = modelsAreEqual(this.currentModel, model);
 					const isSelected = index === this.selectedIndex;
