@@ -1,6 +1,7 @@
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import { getModel, getModels, getProviders, type Model } from "@earendil-works/pi-ai";
 import { createStreamFn } from "@earendil-works/pi-web-ui";
+import { getGitHubCopilotBaseUrl } from "./oauth/github-copilot.js";
 import { resolveApiKey } from "./oauth/index.js";
 import {
 	applyCloudflareWorkersAiCredentials,
@@ -63,7 +64,13 @@ export function createSitegeistStreamFn(storage: SitegeistAppStorage): Sitegeist
 	return (async (...args: SitegeistStreamFnArgs) => {
 		const [model, context, options] = args;
 		const storedProviderKey = await getStoredProviderKey(storage, model.provider);
-		const resolvedModel = applyCloudflareWorkersAiCredentials(model, storedProviderKey);
+		let resolvedModel = applyCloudflareWorkersAiCredentials(model, storedProviderKey);
+		if (resolvedModel.provider === "github-copilot" && typeof options?.apiKey === "string") {
+			const baseUrl = getGitHubCopilotBaseUrl(options.apiKey);
+			if (baseUrl !== resolvedModel.baseUrl) {
+				resolvedModel = { ...resolvedModel, baseUrl };
+			}
+		}
 		return baseStreamFn(resolvedModel, context, options) as unknown as ReturnType<SitegeistStreamFn>;
 	}) as SitegeistStreamFn;
 }

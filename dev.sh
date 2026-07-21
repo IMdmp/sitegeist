@@ -13,6 +13,11 @@ if [ ! -d "../mini-lit" ]; then
     exit 1
 fi
 
+if [ ! -f "site/node_modules/vite/package.json" ] || [ ! -f "site/node_modules/@tailwindcss/vite/package.json" ]; then
+    echo "Installing missing site dependencies..."
+    (cd site && npm install)
+fi
+
 # Kill all child processes on exit
 trap 'echo ""; echo "Stopping all dev servers..."; kill 0' EXIT INT TERM
 
